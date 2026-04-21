@@ -211,7 +211,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str,
             image=image,
             environment_variables={
                 "PROJECT_ENDPOINT": project_endpoint,
-                "MODEL_DEPLOYMENT_NAME": "gpt-4o",
+                "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
                 "DATABASE_URL": database_url,
             },
         ),
@@ -228,7 +228,7 @@ def generate_env_file(project_endpoint: str, database_url: str):
 
     with open(env_path, "w") as f:
         f.write(f"PROJECT_ENDPOINT={project_endpoint}\n")
-        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o\n")
+        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
         f.write(f"DATABASE_URL={database_url}\n")
 
     print(f"✅ Generated {env_path} for local development")

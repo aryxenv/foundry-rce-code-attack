@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "17568031790737285388"
+      "templateHash": "17863017649137640519"
     }
   },
   "parameters": {
@@ -158,7 +158,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "8793505329471944942"
+              "templateHash": "16869436708436900993"
             }
           },
           "parameters": {
@@ -183,9 +183,9 @@
               "name": "[parameters('name')]",
               "location": "[parameters('location')]",
               "tags": "[variables('allTags')]",
-              "kind": "Bing.Search.v7",
+              "kind": "Bing.Grounding",
               "sku": {
-                "name": "S1"
+                "name": "G1"
               }
             }
           ],
@@ -201,6 +201,14 @@
             "bingAccountName": {
               "type": "string",
               "value": "[parameters('name')]"
+            },
+            "bingAccountId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Bing/accounts', parameters('name'))]"
+            },
+            "bingAccountLocation": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Bing/accounts', parameters('name')), '2020-06-10', 'full').location]"
             }
           }
         }
@@ -236,6 +244,12 @@
           },
           "bingAccountKey": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.key.value]"
+          },
+          "bingAccountId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountId.value]"
+          },
+          "bingAccountLocation": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountLocation.value]"
           }
         },
         "template": {
@@ -245,7 +259,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "11960379786071383346"
+              "templateHash": "6362331640566502561"
             }
           },
           "parameters": {
@@ -260,11 +274,11 @@
             },
             "modelName": {
               "type": "string",
-              "defaultValue": "gpt-4o"
+              "defaultValue": "gpt-4o-mini"
             },
             "modelVersion": {
               "type": "string",
-              "defaultValue": "2024-11-20"
+              "defaultValue": "2024-07-18"
             },
             "projectName": {
               "type": "string",
@@ -289,9 +303,26 @@
               "type": "string",
               "defaultValue": ""
             },
+            "bingAccountId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Bing account resource ID for connection metadata."
+              }
+            },
+            "bingAccountLocation": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Bing account location (typically global)."
+              }
+            },
             "bingAccountKey": {
               "type": "securestring",
-              "defaultValue": ""
+              "defaultValue": "",
+              "metadata": {
+                "description": "Bing API key (sourced from listKeys at deploy time)."
+              }
             }
           },
           "variables": {
@@ -406,23 +437,26 @@
             },
             {
               "condition": "[not(empty(parameters('bingAccountName')))]",
-              "type": "Microsoft.CognitiveServices/accounts/connections",
-              "apiVersion": "2025-04-01-preview",
-              "name": "[format('{0}/{1}', parameters('name'), 'bing-grounding')]",
+              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
+              "apiVersion": "2025-06-01",
+              "name": "[format('{0}/{1}/{2}', parameters('name'), variables('aiProjectName'), 'bing-grounding')]",
               "properties": {
-                "category": "BingGrounding",
+                "category": "GroundingWithBingSearch",
                 "authType": "ApiKey",
                 "target": "https://api.bing.microsoft.com/",
-                "isSharedToAll": true,
+                "isSharedToAll": false,
                 "credentials": {
                   "key": "[parameters('bingAccountKey')]"
                 },
                 "metadata": {
-                  "ApiType": "Bing"
+                  "type": "bing_grounding",
+                  "ApiType": "Azure",
+                  "ResourceId": "[parameters('bingAccountId')]",
+                  "location": "[parameters('bingAccountLocation')]"
                 }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]"
               ]
             }
           ],

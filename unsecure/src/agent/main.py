@@ -24,7 +24,7 @@ from azure.identity.aio import DefaultAzureCredential
 from tools import get_market_data, execute_code
 
 PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
-MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o")
+MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
 
 DATA_AGENT_INSTRUCTIONS = """\
 You are Contoso's data retrieval specialist. Your job is to fetch relevant internal data \

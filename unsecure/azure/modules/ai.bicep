@@ -1,8 +1,8 @@
 param name string
 param location string
 param tags object
-param modelName string = 'gpt-4o'
-param modelVersion string = '2024-11-20'
+param modelName string = 'gpt-4o-mini'
+param modelVersion string = '2024-07-18'
 param projectName string = ''
 param deployerPrincipalId string
 
@@ -16,6 +16,13 @@ param deployerPrincipalType string = 'User'
 
 param bingAccountName string = ''
 
+@description('Bing account resource ID for connection metadata.')
+param bingAccountId string = ''
+
+@description('Bing account location (typically global).')
+param bingAccountLocation string = 'global'
+
+@description('Bing API key (sourced from listKeys at deploy time).')
 @secure()
 param bingAccountKey string = ''
 
@@ -108,20 +115,23 @@ resource cognitiveServicesUserRole 'Microsoft.Authorization/roleAssignments@2022
   }
 }
 
-// --- Bing Grounding connection for agents ---
-resource bingConnection 'Microsoft.CognitiveServices/accounts/connections@2025-04-01-preview' = if (!empty(bingAccountName)) {
-  parent: aiServices
+// --- Bing Grounding connection for agents (project-scoped) ---
+resource bingConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01' = if (!empty(bingAccountName)) {
+  parent: aiProject
   name: 'bing-grounding'
   properties: {
-    category: 'BingGrounding'
+    category: 'GroundingWithBingSearch'
     authType: 'ApiKey'
     target: 'https://api.bing.microsoft.com/'
-    isSharedToAll: true
+    isSharedToAll: false
     credentials: {
       key: bingAccountKey
     }
     metadata: {
-      ApiType: 'Bing'
+      type: 'bing_grounding'
+      ApiType: 'Azure'
+      ResourceId: bingAccountId
+      location: bingAccountLocation
     }
   }
 }

@@ -60,6 +60,8 @@ module ai 'modules/ai.bicep' = {
     deployerPrincipalType: deployerPrincipalType
     bingAccountName: bing.outputs.bingAccountName
     bingAccountKey: bing.outputs.key
+    bingAccountId: bing.outputs.bingAccountId
+    bingAccountLocation: bing.outputs.bingAccountLocation
   }
 }
 
