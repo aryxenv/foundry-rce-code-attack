@@ -1,0 +1,6 @@
+agent-framework
+azure-ai-agentserver-agentframework==1.0.0b15
+psycopg2-binary
+matplotlib
+python-dotenv
+azure-identity
