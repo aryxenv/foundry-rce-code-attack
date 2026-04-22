@@ -11,7 +11,7 @@ $upn = (az ad signed-in-user show --query userPrincipalName -o tsv)
 $oid = (az ad signed-in-user show --query id -o tsv)
 
 if ($pgName -and $rg -and $upn -and $oid) {
-    az postgres flexible-server ad-admin create `
+    az postgres flexible-server microsoft-entra-admin create `
         --resource-group $rg `
         --server-name $pgName `
         --object-id $oid `

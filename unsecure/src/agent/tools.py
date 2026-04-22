@@ -13,13 +13,81 @@ import os
 import re
 import subprocess
 import tempfile
+import textwrap
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 import psycopg2
 from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient, BlobSasPermissions, generate_blob_sas
 
 # Module-level credential for AAD token auth (fresh token per connection)
 _credential = DefaultAzureCredential()
+
+# Cap base64 length per chart so we don't blow the model's TPM budget
+# when the upload-to-blob path isn't configured (local dev fallback).
+# 16 KB base64 ≈ 4K tokens.
+_MAX_IMAGE_B64_BYTES = 16 * 1024
+
+# Storage upload config — when set, charts are uploaded and the tool returns
+# a short-lived SAS URL instead of inlining base64 (~20 tokens vs ~4K).
+_STORAGE_ACCOUNT = os.getenv("CHART_STORAGE_ACCOUNT")
+_STORAGE_CONTAINER = os.getenv("CHART_STORAGE_CONTAINER", "chart-uploads")
+_SAS_TTL = timedelta(hours=1)
+
+# Force small/low-DPI matplotlib output so generated charts stay within the cap.
+_MATPLOTLIB_PREAMBLE = textwrap.dedent("""\
+    try:
+        import matplotlib as _mpl
+        _mpl.use("Agg")
+        _mpl.rcParams["figure.dpi"] = 72
+        _mpl.rcParams["savefig.dpi"] = 72
+        _mpl.rcParams["figure.figsize"] = (6, 4)
+    except Exception:
+        pass
+""")
+
+
+def _upload_chart(image_path: str) -> Optional[str]:
+    """Upload a PNG to blob storage and return a 1-hour read SAS URL.
+
+    Uses a user-delegation SAS signed with the runtime MI's Entra token —
+    no storage account keys ever touch the container.
+
+    Returns None on any failure so the caller can fall back to base64.
+    """
+    if not _STORAGE_ACCOUNT:
+        return None
+    try:
+        account_url = f"https://{_STORAGE_ACCOUNT}.blob.core.windows.net"
+        service = BlobServiceClient(account_url=account_url, credential=_credential)
+
+        blob_name = f"chart-{uuid.uuid4().hex}.png"
+        container = service.get_container_client(_STORAGE_CONTAINER)
+        with open(image_path, "rb") as f:
+            container.upload_blob(name=blob_name, data=f, overwrite=False)
+
+        # User-delegation key requires Storage Blob Data Contributor (or similar) on the account.
+        now = datetime.now(timezone.utc)
+        delegation_key = service.get_user_delegation_key(
+            key_start_time=now - timedelta(minutes=5),
+            key_expiry_time=now + _SAS_TTL,
+        )
+        sas = generate_blob_sas(
+            account_name=_STORAGE_ACCOUNT,
+            container_name=_STORAGE_CONTAINER,
+            blob_name=blob_name,
+            user_delegation_key=delegation_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=now + _SAS_TTL,
+            start=now - timedelta(minutes=5),
+            content_type="image/png",
+        )
+        return f"{account_url}/{_STORAGE_CONTAINER}/{blob_name}?{sas}"
+    except Exception as exc:
+        print(f"[execute_code] chart upload failed, falling back to base64: {exc}")
+        return None
 
 # ---------------------------------------------------------------------------
 # Dataset → SQL view mapping
@@ -128,6 +196,7 @@ def execute_code(
         delete=False,
     )
     try:
+        tmp.write(_MATPLOTLIB_PREAMBLE)
         tmp.write(code)
         tmp.close()
 
@@ -146,13 +215,27 @@ def execute_code(
         if result.returncode != 0:
             output += f"\n(exit code: {result.returncode})"
 
-        # Detect generated chart images and include as base64
+        # Detect generated chart images. Preferred path: upload to blob and
+        # return a short-lived SAS URL (~80 chars vs. ~17K of base64 per chart).
+        # Falls back to capped base64 inlining for local dev where no storage
+        # account is configured.
         for img_path in glob.glob("/workspace/*.png"):
             try:
-                with open(img_path, "rb") as img_file:
-                    b64 = base64.b64encode(img_file.read()).decode()
-                    output += f"\n\n[Generated image: data:image/png;base64,{b64}]"
-                os.unlink(img_path)  # Clean up after encoding
+                sas_url = _upload_chart(img_path)
+                if sas_url:
+                    output += f"\n\n[Chart available: {sas_url}]"
+                else:
+                    with open(img_path, "rb") as img_file:
+                        b64 = base64.b64encode(img_file.read()).decode()
+                    if len(b64) > _MAX_IMAGE_B64_BYTES:
+                        output += (
+                            f"\n\n[Generated image too large to inline "
+                            f"({len(b64)} > {_MAX_IMAGE_B64_BYTES} base64 bytes). "
+                            f"Reduce figsize/dpi or simplify the chart.]"
+                        )
+                    else:
+                        output += f"\n\n[Generated image: data:image/png;base64,{b64}]"
+                os.unlink(img_path)
             except Exception:
                 pass
 

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "17863017649137640519"
+      "templateHash": "6120723361254253606"
     }
   },
   "parameters": {
@@ -42,7 +42,8 @@
     "envPrefix": "[take(replace(toLower(parameters('environmentName')), '-', ''), 12)]",
     "acrName": "[format('{0}{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
     "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
-    "bingName": "[format('{0}bing{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]"
+    "bingName": "[format('{0}bing{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
+    "storageName": "[take(format('{0}st{1}', variables('envPrefix'), variables('resourceToken')), 24)]"
   },
   "resources": [
     {
@@ -259,7 +260,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "6362331640566502561"
+              "templateHash": "9589896361440496843"
             }
           },
           "parameters": {
@@ -340,6 +341,9 @@
               "sku": {
                 "name": "S0"
               },
+              "identity": {
+                "type": "SystemAssigned"
+              },
               "properties": {
                 "allowProjectManagement": true,
                 "customSubDomainName": "[parameters('name')]",
@@ -380,7 +384,7 @@
               "name": "[format('{0}/{1}', parameters('name'), parameters('modelName'))]",
               "sku": {
                 "name": "GlobalStandard",
-                "capacity": 50
+                "capacity": 500
               },
               "properties": {
                 "model": {
@@ -436,27 +440,42 @@
               ]
             },
             {
-              "condition": "[not(empty(parameters('bingAccountName')))]",
-              "type": "Microsoft.CognitiveServices/accounts/projects/connections",
-              "apiVersion": "2025-06-01",
-              "name": "[format('{0}/{1}/{2}', parameters('name'), variables('aiProjectName'), 'bing-grounding')]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('name')), resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName')), '53ca6127-db72-4b80-b1b0-d745d6d5456d')]",
               "properties": {
-                "category": "GroundingWithBingSearch",
-                "authType": "ApiKey",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')]",
+                "principalId": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName')), '2025-06-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('bingAccountName')))]",
+              "type": "Microsoft.CognitiveServices/accounts/connections",
+              "apiVersion": "2025-04-01-preview",
+              "name": "[format('{0}/{1}', parameters('name'), 'bing-grounding')]",
+              "properties": {
+                "category": "ApiKey",
                 "target": "https://api.bing.microsoft.com/",
-                "isSharedToAll": false,
+                "authType": "ApiKey",
+                "isSharedToAll": true,
                 "credentials": {
                   "key": "[parameters('bingAccountKey')]"
                 },
                 "metadata": {
-                  "type": "bing_grounding",
                   "ApiType": "Azure",
-                  "ResourceId": "[parameters('bingAccountId')]",
-                  "location": "[parameters('bingAccountLocation')]"
+                  "Location": "[parameters('bingAccountLocation')]",
+                  "ResourceId": "[parameters('bingAccountId')]"
                 }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]"
+                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
               ]
             }
           ],
@@ -648,6 +667,174 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'ai')]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[variables('storageName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "8673605284283025151"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the hosted agent runtime identity (AI project MI). Granted Storage Blob Data Contributor."
+              }
+            },
+            "containerName": {
+              "type": "string",
+              "defaultValue": "chart-uploads"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "accessTier": "Hot",
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": true,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Allow"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}/{2}', parameters('name'), 'default', parameters('containerName'))]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('name'), 'default')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "properties": {
+                "policy": {
+                  "rules": [
+                    {
+                      "name": "delete-old-charts",
+                      "enabled": true,
+                      "type": "Lifecycle",
+                      "definition": {
+                        "filters": {
+                          "blobTypes": [
+                            "blockBlob"
+                          ],
+                          "prefixMatch": [
+                            "[parameters('containerName')]"
+                          ]
+                        },
+                        "actions": {
+                          "baseBlob": {
+                            "delete": {
+                              "daysAfterModificationGreaterThan": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), parameters('principalId'), 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "storageAccountName": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "containerName": {
+              "type": "string",
+              "value": "[parameters('containerName')]"
+            },
+            "blobEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), '2023-05-01').primaryEndpoints.blob]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'ai')]"
+      ]
     }
   ],
   "outputs": {
@@ -690,6 +877,18 @@
     "PROJECT_ENDPOINT": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectEndpoint.value]"
+    },
+    "PROJECT_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectName.value]"
+    },
+    "CHART_STORAGE_ACCOUNT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountName.value]"
+    },
+    "CHART_STORAGE_CONTAINER": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.containerName.value]"
     }
   }
 }

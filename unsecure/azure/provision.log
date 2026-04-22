@@ -1,0 +1,26 @@
+
+Provisioning Azure resources (azd provision)
+Provisioning Azure resources can take some time.
+
+Initialize bicep provider
+Reading subscription and location from environment...
+Subscription: Techorama (57330b00-5fc0-4cb6-9c46-0f5efd710413)
+Location: Sweden Central
+
+Creating a deployment plan
+Comparing deployment state
+Validating deployment
+  (!) Warning: the current principal (235f6291-b9fe-4c39-923a-01d8e1296a21) has conditional permission to create role assignments (Microsoft.Authorization/roleAssignments/write) on subscription 57330b00-5fc0-4cb6-9c46-0f5efd710413. The role assignment that grants this permission has an ABAC condition that may restrict which roles can be assigned. The deployment may fail if the condition does not permit the specific role assignments in the template.
+
+Creating/Updating resources
+
+  You can view detailed progress in the Azure Portal:
+  https://portal.azure.com/#view/HubsExtension/DeploymentDetailsBlade/~/overview/id/%2Fsubscriptions%2F57330b00-5fc0-4cb6-9c46-0f5efd710413%2FresourceGroups%2Fcode-attack%2Fproviders%2FMicrosoft.Resources%2Fdeployments%2Fstatic-1776793977
+
+  (Γ£ô) Done: Container Registry: staticum4jgs (8.916s)
+  (Γ£ô) Done: Foundry: static-ai (23.419s)
+  (Γ£ô) Done: Azure AI Services Model Deployment: static-ai/gpt-4o-mini (25.498s)
+  (Γ£ô) Done: Foundry project: static-ai/static-ai-project (8.233s)
+
+ERROR: deployment failed: error deploying infrastructure: deploying to resource group: failed to authenticate: unable to resolve an endpoint: server response error:
+ Get "https://login.microsoftonline.com/26c929c7-cd98-40f6-b236-0281db3a2bd3/v2.0/.well-known/openid-configuration?": dial tcp: lookup login.microsoftonline.com: i/o timeout

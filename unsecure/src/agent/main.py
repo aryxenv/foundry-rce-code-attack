@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-from agent_framework.foundry import FoundryChatClient
+from agent_framework.azure import AzureAIAgentClient
 from agent_framework.orchestrations import SequentialBuilder
 from azure.ai.agentserver.agentframework import from_agent_framework
 from azure.identity.aio import DefaultAzureCredential
@@ -43,7 +43,9 @@ You are Contoso's data visualization specialist. You receive data from the retri
 and create Python visualizations using matplotlib.
 
 Use execute_code to run Python code that generates charts and graphs. Save any charts as .png \
-files to /workspace/ — they will be returned automatically.
+files to /workspace/ — they will be uploaded to a shared storage location and the tool will \
+return a SAS download URL in the form `[Chart available: https://...]`. Always include that \
+URL verbatim in your final response so the user can view the chart.
 
 Create clear, professional visualizations with proper labels, titles, and formatting. \
 Only use the data provided in the conversation — do not access databases or external sources directly.\
@@ -53,10 +55,10 @@ Only use the data provided in the conversation — do not access databases or ex
 async def main():
     """Run the hosted agent as a deterministic two-stage workflow."""
     async with DefaultAzureCredential() as credential:
-        client = FoundryChatClient(
+        client = AzureAIAgentClient(
             credential=credential,
             project_endpoint=PROJECT_ENDPOINT,
-            model=MODEL_DEPLOYMENT_NAME,
+            model_deployment_name=MODEL_DEPLOYMENT_NAME,
         )
 
         data_agent = client.as_agent(

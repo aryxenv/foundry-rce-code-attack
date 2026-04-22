@@ -1,6 +1,8 @@
-agent-framework
-azure-ai-agentserver-agentframework==1.0.0b15
+agent-framework==1.0.0rc3
+agent-framework-azure-ai==1.0.0rc3
+azure-ai-agentserver-agentframework==1.0.0b17
 psycopg2-binary
 matplotlib
 python-dotenv
 azure-identity
+azure-storage-blob>=12.20.0

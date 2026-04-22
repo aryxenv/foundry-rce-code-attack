@@ -7,12 +7,16 @@ Usage: python scripts/setup.py
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import time
 
 import psycopg2
 from azure.identity import DefaultAzureCredential
+
+# On Windows, `az` is a .cmd file which subprocess.run can't find without shell=True.
+AZ = shutil.which("az") or "az"
 
 
 def get_azd_env() -> dict[str, str]:
@@ -183,13 +187,16 @@ def build_agent_image(acr_name: str):
 
     print(f"📦 Building agent image in ACR '{acr_name}' (remote build)...")
     subprocess.run(
-        ["az", "acr", "build", "--registry", acr_name, "--image", "contoso-agent:latest", agent_dir],
+        [AZ, "acr", "build", "--registry", acr_name, "--image", "contoso-agent:latest",
+         "--no-logs", agent_dir],
         check=True,
     )
     print(f"✅ Agent image pushed to {acr_name}.azurecr.io/contoso-agent:latest")
 
 
-def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str, credential):
+def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str, credential,
+                         chart_storage_account: str | None = None,
+                         chart_storage_container: str | None = None):
     """Deploy the hosted agent to Foundry via HostedAgentDefinition."""
     from azure.ai.projects import AIProjectClient
     from azure.ai.projects.models import HostedAgentDefinition, ProtocolVersionRecord, AgentProtocol
@@ -202,6 +209,16 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str,
 
     image = f"{acr_name}.azurecr.io/contoso-agent:latest"
 
+    env_vars = {
+        "PROJECT_ENDPOINT": project_endpoint,
+        "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
+        "DATABASE_URL": database_url,
+    }
+    if chart_storage_account:
+        env_vars["CHART_STORAGE_ACCOUNT"] = chart_storage_account
+    if chart_storage_container:
+        env_vars["CHART_STORAGE_CONTAINER"] = chart_storage_container
+
     agent = client.agents.create_version(
         agent_name="contoso-market-research",
         definition=HostedAgentDefinition(
@@ -209,16 +226,37 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str,
             cpu="1",
             memory="2Gi",
             image=image,
-            environment_variables={
-                "PROJECT_ENDPOINT": project_endpoint,
-                "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
-                "DATABASE_URL": database_url,
-            },
+            environment_variables=env_vars,
         ),
     )
 
     print(f"✅ Deployed hosted agent: {agent.name} (version: {agent.version})")
-    return agent.name
+    return agent.name, agent.version
+
+
+def start_hosted_agent(account_name: str, project_name: str, agent_name: str, agent_version):
+    """Start the hosted agent deployment so it serves requests.
+
+    create_version only registers the spec; the deployment sits at min/max=0 (Stopped)
+    until you call `az cognitiveservices agent start`. There is no Python SDK for this
+    yet — the docs use the az CLI. The `cognitiveservices agent` command group is built
+    into core az CLI 2.83.0+ (preview, no extension install required).
+    See: https://learn.microsoft.com/azure/foundry/agents/how-to/manage-hosted-agent
+    """
+    print(f"▶️  Starting hosted agent '{agent_name}' v{agent_version}...")
+    # Note: --min-replicas/--max-replicas are accepted by `agent update` but not by `agent start`
+    # in current az CLI (2.83.0). Start defaults to min=1/max=1 per docs, which is what we want.
+    subprocess.run(
+        [
+            AZ, "cognitiveservices", "agent", "start",
+            "--account-name", account_name,
+            "--project-name", project_name,
+            "--name", agent_name,
+            "--agent-version", str(agent_version),
+        ],
+        check=True,
+    )
+    print(f"✅ Hosted agent started — should be Running in ~1 minute.")
 
 
 def generate_env_file(project_endpoint: str, database_url: str):
@@ -242,6 +280,15 @@ def main():
     database_url = env.get("DATABASE_URL")
     acr_name = env.get("AZURE_CONTAINER_REGISTRY_NAME")
     fqdn = env.get("POSTGRESQL_FQDN")
+    ai_services_name = env.get("AI_SERVICES_NAME")
+    # PROJECT_NAME may be missing on envs provisioned before the bicep output was added —
+    # fall back to parsing it from the project endpoint .../api/projects/<name>
+    project_name = env.get("PROJECT_NAME")
+    if not project_name and project_endpoint:
+        project_name = project_endpoint.rstrip("/").rsplit("/", 1)[-1]
+
+    chart_storage_account = env.get("CHART_STORAGE_ACCOUNT")
+    chart_storage_container = env.get("CHART_STORAGE_CONTAINER")
 
     if not all([project_endpoint, database_url, acr_name, fqdn]):
         print("❌ Missing deployment outputs. Run 'azd up' first.")
@@ -253,11 +300,24 @@ def main():
 
     # Get deployer UPN for AAD auth to PostgreSQL
     deployer_upn = subprocess.run(
-        ["az", "ad", "signed-in-user", "show", "--query", "userPrincipalName", "-o", "tsv"],
+        [AZ, "ad", "signed-in-user", "show", "--query", "userPrincipalName", "-o", "tsv"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
 
-    credential = DefaultAzureCredential()
+    # Pin DefaultAzureCredential to the deployment's tenant. Without this it picks up
+    # whatever tenant is "default" in the local az/MSAL cache, which can mismatch the
+    # Techorama tenant and cause "access token isn't valid for this server's tenant".
+    deployment_tenant = subprocess.run(
+        [AZ, "account", "show", "--query", "tenantId", "-o", "tsv"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    credential = DefaultAzureCredential(
+        additionally_allowed_tenants=["*"],
+        # Force PG token to be issued in the deployment tenant.
+    )
+    # AzureCliCredential is the most reliable on dev machines with multiple tenants.
+    from azure.identity import AzureCliCredential
+    credential = AzureCliCredential(tenant_id=deployment_tenant)
 
     # Step 1: Seed PostgreSQL with fake Contoso data
     seed_database(fqdn, deployer_upn, credential)
@@ -274,7 +334,23 @@ def main():
         print("⏳ Waiting 90 seconds for role assignments to propagate...")
         time.sleep(90)
 
-        agent_name = deploy_hosted_agent(project_endpoint, acr_name, database_url, credential)
+        agent_name, agent_version = deploy_hosted_agent(
+            project_endpoint, acr_name, database_url, credential,
+            chart_storage_account=chart_storage_account,
+            chart_storage_container=chart_storage_container,
+        )
+
+        # create_version only registers the spec — start the deployment so it actually runs.
+        try:
+            start_hosted_agent(ai_services_name, project_name, agent_name, agent_version)
+        except Exception as start_err:
+            print(f"\n⚠️  Auto-start failed: {start_err}")
+            print(f"   Run manually:")
+            print(f"     az cognitiveservices agent start \\")
+            print(f"       --account-name {ai_services_name} --project-name {project_name} \\")
+            print(f"       --name {agent_name} --agent-version {agent_version}")
+            print(f"   Or click 'Start agent deployment' in the Foundry portal.")
+
         print(f"\n🎯 Setup complete! Hosted agent deployed: {agent_name}")
     except Exception as e:
         print(f"\n⚠️  Automated agent deployment failed: {e}")

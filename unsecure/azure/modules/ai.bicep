@@ -37,6 +37,9 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   sku: {
     name: 'S0'
   }
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     allowProjectManagement: true
     customSubDomainName: name
@@ -56,22 +59,29 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = 
   properties: {}
 }
 
-resource capabilityHost 'Microsoft.CognitiveServices/accounts/capabilityHosts@2025-10-01-preview' = {
+// Account-level capability host. Required for hosted agents — without this,
+// `az cognitiveservices agent start` fails with "Capability Host not found".
+// `enablePublicHostingEnvironment: true` is required for hosted agent containers
+// to run in Microsoft's managed environment (vs a private network-isolated one).
+// See: https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#create-an-account-level-capability-host
+resource accountCapabilityHost 'Microsoft.CognitiveServices/accounts/capabilityHosts@2025-10-01-preview' = {
   parent: aiServices
   name: 'accountcaphost'
   properties: {
     capabilityHostKind: 'Agents'
     enablePublicHostingEnvironment: true
   }
-  dependsOn: [aiProject]
+  dependsOn: [
+    aiProject
+  ]
 }
 
-resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
+resource modelDeployment'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
   parent: aiServices
   name: modelName
   sku: {
     name: 'GlobalStandard'
-    capacity: 50
+    capacity: 500
   }
   properties: {
     model: {
@@ -115,23 +125,38 @@ resource cognitiveServicesUserRole 'Microsoft.Authorization/roleAssignments@2022
   }
 }
 
-// --- Bing Grounding connection for agents (project-scoped) ---
-resource bingConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01' = if (!empty(bingAccountName)) {
-  parent: aiProject
-  name: 'bing-grounding'
+// Hosted agent runtime calls POST /assistants as the project's own MI.
+// Without Azure AI User on the parent account, that call returns PermissionDenied
+// (missing data action Microsoft.CognitiveServices/accounts/AIServices/agents/write).
+resource projectAzureAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aiServices
+  name: guid(aiServices.id, aiProject.id, '53ca6127-db72-4b80-b1b0-d745d6d5456d')
   properties: {
-    category: 'GroundingWithBingSearch'
-    authType: 'ApiKey'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
+    principalId: aiProject.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// --- Bing Grounding connection for agents (account-scoped, per Microsoft 45-basic-agent-bing sample) ---
+resource bingConnection 'Microsoft.CognitiveServices/accounts/connections@2025-04-01-preview' = if (!empty(bingAccountName)) {
+  parent: aiServices
+  name: 'bing-grounding'
+  dependsOn: [
+    aiProject
+  ]
+  properties: {
+    category: 'ApiKey'
     target: 'https://api.bing.microsoft.com/'
-    isSharedToAll: false
+    authType: 'ApiKey'
+    isSharedToAll: true
     credentials: {
       key: bingAccountKey
     }
     metadata: {
-      type: 'bing_grounding'
       ApiType: 'Azure'
+      Location: bingAccountLocation
       ResourceId: bingAccountId
-      location: bingAccountLocation
     }
   }
 }
