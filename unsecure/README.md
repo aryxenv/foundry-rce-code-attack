@@ -11,7 +11,7 @@ Demonstrates how a code interpreter co-located in the same container as an AI ag
 
 ## Architecture
 
-![Architecture diagram](./unsafe_architecture_v2.png)
+![Architecture diagram](./unsafe_architecture.png)
 
 ## Prerequisites
 
