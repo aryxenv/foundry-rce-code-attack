@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "type": "function_call",
+      "id": "func_a199c6110dfc174f00Qk1DeLplPB5ANOBEQLtzBOezfmReLghy",
+      "agent_reference": {
+        "type": "agent_reference",
+        "name": "ContosoMarketResearch",
+        "version": ""
+      },
+      "response_id": "caresp_a199c6110dfc174f003RLxrhSsCcLjoTgugIWMJYR2qEDQc67x",
+      "call_id": "call_rSDftW1avJoridySeuQvYRiT",
+      "name": "get_market_data",
+      "arguments": "{\"dataset\":\"sales_by_region\",\"filters\":{\"quarter\":\"Q1-2025\"}}",
+      "status": "completed"
+    },
+    {
+      "type": "message",
+      "id": "msg_a199c6110dfc174f00BwekZ38sS0oLyuocxlpSDzwMmY2E689E",
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "What were Q1 sales by region? Just show me the numbers in a bullet list, no chart."
+        }
+      ],
+      "status": "completed"
+    }
+  ],
+  "first_id": "func_a199c6110dfc174f00Qk1DeLplPB5ANOBEQLtzBOezfmReLghy",
+  "last_id": "msg_a199c6110dfc174f00BwekZ38sS0oLyuocxlpSDzwMmY2E689E",
+  "has_more": false,
+  "object": "list"
+}

@@ -13,6 +13,13 @@ Demonstrates how a code interpreter co-located in the same container as an AI ag
 
 ![Architecture diagram](./unsafe_architecture.png)
 
+| Resource                   | Purpose                                                             |
+| -------------------------- | ------------------------------------------------------------------- |
+| AI Services + Project      | Foundry project for the hosted market research agent                |
+| ACR                        | Hosts the agent container image                                     |
+| PostgreSQL Flexible Server | Contoso database — customers, sales, employee compensation with PII |
+| Storage Account            | Stores chart PNGs uploaded by `execute_code`; SAS URLs are returned |
+
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
@@ -27,49 +34,43 @@ azd up
 
 That's it. `azd up` will:
 
-1. Provision all Azure resources (PostgreSQL, AI Services, ACR, Bing Search)
+1. Provision all Azure resources (PostgreSQL, AI Services, ACR, Storage)
 2. Automatically run post-provision setup:
+   - Open a PG firewall rule for your current public IP (named `azd-deployer-<ip>`)
    - Seed PostgreSQL with fake Contoso data (customers, sales, employee compensation)
    - Build the hosted agent image in ACR (remote build)
-   - Deploy the hosted agent to Foundry
+   - Deploy the hosted agent to Foundry and wait until it reports Running
    - Generate `src/agent/.env` for local development
 
-## Architecture
-
-| Resource                   | Purpose                                                             |
-| -------------------------- | ------------------------------------------------------------------- |
-| AI Services + Project      | Foundry project for the hosted market research agent                |
-| ACR                        | Hosts the agent container image                                     |
-| PostgreSQL Flexible Server | Contoso database — customers, sales, employee compensation with PII |
-| Bing Search (Grounding)    | Internet search for market research queries                         |
+If `azd up` halts during postprovision, the hook now exits non-zero with the
+specific error (PG firewall, AAD-admin propagation, AcrPull RBAC race, etc.) —
+re-run with `azd hooks run postprovision`.
 
 ## The Agent
 
-The **Contoso Market Research Agent** uses a **deterministic two-stage workflow** (MAF `SequentialBuilder`):
+The **Contoso Market Research Agent** is a **single hosted ChatAgent** with two tools registered. The two-stage flow (retrieve sanitized data first, then visualize) is enforced by the system prompt rather than by workflow topology.
 
-**Stage 1 — DataRetrieval Agent** (always runs first):
+**Tools:**
 
 - **`get_market_data`** — Queries PostgreSQL through sanitized views (`vw_sales_by_region`, `vw_customer_segments`, `vw_quarterly_financials`) with PII regex scrubbing.
-- **Bing grounding** — Internet search for supplemental market data.
-
-**Stage 2 — CodeExecution Agent** (always runs second):
-
 - **`execute_code`** — Runs Python code to analyze the retrieved data and create matplotlib visualizations. **DELIBERATELY VULNERABLE.**
 
-Normal flow: Stage 1 retrieves sanitized data + market context → Stage 2 creates charts from clean data.
+Normal flow: the model calls `get_market_data` first to fetch sanitized data, then calls `execute_code` to render a chart from that clean data.
+
+The hosted agent runs as a single Foundry container (`contoso-market-research`); both tool callbacks execute *locally* inside that container, which is exactly the isolation gap the demo exploits.
 
 ## The Attack
 
-The workflow is deterministic, but Stage 2's code execution runs in the **same container** as the agent — inheriting `DATABASE_URL` and `psycopg2`:
+Both tools live in the **same container** as the agent, so `execute_code` inherits `DATABASE_URL` and `psycopg2`:
 
-1. Stage 1 runs normally — `get_market_data` returns sanitized data, Bing returns market context. **Logs look legitimate.**
-2. Attacker prompt tricks Stage 2 into generating code that **re-queries the database directly** during code execution
-3. Code connects to PostgreSQL via `DATABASE_URL`, bypasses sanitized views
-4. Reads raw PII — SSNs, emails, salaries, addresses
-5. Embeds the PII as chart axis labels, tick marks, and annotations in a matplotlib chart image
-6. Returns the chart to the user — the PII is visible in the image
+1. The model calls `get_market_data` normally — sanitized data comes back. **Logs look legitimate.**
+2. Attacker prompt tricks the model into generating code for `execute_code` that **re-queries the database directly**.
+3. Code connects to PostgreSQL via `DATABASE_URL`, bypasses sanitized views.
+4. Reads raw PII — SSNs, emails, salaries, addresses.
+5. Embeds the PII as chart axis labels, tick marks, and annotations in a matplotlib chart image.
+6. Returns the chart to the user — the PII is visible in the image.
 
-**Content safety never fires** — Azure content safety scans the agent's text response, not the pixels of generated images. The PII is hiding in plain sight inside the chart. The deterministic flow makes the attack **stealthier** — it blends into the normal workflow rather than bypassing it.
+**Content safety never fires** — Azure content safety scans the agent's text response, not the pixels of generated images. The PII is hiding in plain sight inside the chart.
 
 ## Local Agent Development
 

@@ -24,11 +24,10 @@ var tags = {
 }
 
 // Cap the env-name prefix so concatenated names stay within service limits
-// (ACR <= 50 chars, PG flexible server <= 63 chars, Bing <= 50 chars).
+// (ACR <= 50 chars, PG flexible server <= 63 chars).
 var envPrefix = take(replace(toLower(environmentName), '-', ''), 12)
 var acrName = '${envPrefix}${take(resourceToken, 6)}'
 var pgName = '${envPrefix}pg${take(resourceToken, 6)}'
-var bingName = '${envPrefix}bing${take(resourceToken, 6)}'
 // Storage account names: 3-24 lowercase alphanumeric only.
 var storageName = take('${envPrefix}st${resourceToken}', 24)
 
@@ -43,15 +42,6 @@ module containerRegistry 'modules/container-registry.bicep' = {
   }
 }
 
-module bing 'modules/bing.bicep' = {
-  name: 'bing'
-  params: {
-    name: bingName
-    location: 'global'
-    tags: tags
-  }
-}
-
 module ai 'modules/ai.bicep' = {
   name: 'ai'
   params: {
@@ -60,10 +50,6 @@ module ai 'modules/ai.bicep' = {
     tags: tags
     deployerPrincipalId: deployerPrincipalId
     deployerPrincipalType: deployerPrincipalType
-    bingAccountName: bing.outputs.bingAccountName
-    bingAccountKey: bing.outputs.key
-    bingAccountId: bing.outputs.bingAccountId
-    bingAccountLocation: bing.outputs.bingAccountLocation
   }
 }
 
@@ -95,6 +81,9 @@ module storage 'modules/storage.bicep' = {
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName
+  dependsOn: [
+    containerRegistry
+  ]
 }
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -115,8 +104,6 @@ output POSTGRESQL_FQDN string = postgresql.outputs.fqdn
 output POSTGRESQL_NAME string = pgName
 // AAD-auth connection string — agent acquires token via DefaultAzureCredential at runtime.
 output DATABASE_URL string = postgresql.outputs.connectionString
-output BING_ENDPOINT string = bing.outputs.endpoint
-output BING_ACCOUNT_NAME string = bing.outputs.bingAccountName
 output AI_SERVICES_ENDPOINT string = ai.outputs.aiServicesEndpoint
 output AI_SERVICES_NAME string = ai.outputs.aiServicesName
 output PROJECT_ENDPOINT string = ai.outputs.projectEndpoint

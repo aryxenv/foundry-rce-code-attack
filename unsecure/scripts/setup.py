@@ -6,14 +6,16 @@ Reads all config from azd env — zero manual input required.
 Usage: python scripts/setup.py
 """
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 import psycopg2
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential
 
 # On Windows, `az` is a .cmd file which subprocess.run can't find without shell=True.
 AZ = shutil.which("az") or "az"
@@ -36,10 +38,31 @@ def get_azd_env() -> dict[str, str]:
 
 
 def seed_database(fqdn: str, deployer_upn: str, credential):
-    """Create tables, sanitized views, and insert fake Contoso data into PostgreSQL."""
+    """Create tables, sanitized views, and insert fake Contoso data into PostgreSQL.
+
+    Retries the initial connect to absorb AAD-admin propagation latency
+    (the Entra admin grant we just made can take ~30-60s to propagate to the
+    flexible server's auth plane).
+    """
     token = credential.get_token("https://ossrdbms-aad.database.windows.net/.default").token
-    conn_str = f"host={fqdn} port=5432 dbname=postgres user={deployer_upn} sslmode=require password={token}"
-    conn = psycopg2.connect(conn_str)
+    conn_str = (
+        f"host={fqdn} port=5432 dbname=postgres user={deployer_upn} "
+        f"sslmode=require password={token} connect_timeout=10"
+    )
+
+    last_err: Exception | None = None
+    conn = None
+    for attempt in range(1, 7):  # 6 x 10s = up to 60s for AAD-admin propagation
+        try:
+            conn = psycopg2.connect(conn_str)
+            break
+        except Exception as e:
+            last_err = e
+            print(f"[..] PG connect attempt {attempt}/6 failed: {e}; retrying in 10s...")
+            time.sleep(10)
+    if conn is None:
+        raise RuntimeError(f"Could not connect to PostgreSQL after 6 attempts: {last_err}")
+
     conn.autocommit = True
     cur = conn.cursor()
 
@@ -177,24 +200,67 @@ def seed_database(fqdn: str, deployer_upn: str, credential):
 
     cur.close()
     conn.close()
-    print("✅ Seeded PostgreSQL with fake Contoso data (customers, sales, employee_compensation)")
+    print("[OK] Seeded PostgreSQL with fake Contoso data (customers, sales, employee_compensation)")
 
 
-def build_agent_image(acr_name: str):
-    """Build the hosted agent image in ACR via remote build (no local Docker needed)."""
+def build_agent_image(acr_name: str) -> str:
+    """Build & push the agent image with an immutable timestamp tag.
+
+    Foundry pins the image digest at `create_version` time. Reusing `:latest`
+    means subsequent setup.py runs return the existing version and never roll
+    forward — the container keeps running the original digest. Tagging each
+    build with a unique timestamp guarantees `create_version` sees a new
+    spec → creates a new version → rolls forward to the new code.
+    """
     agent_dir = os.path.join(os.path.dirname(__file__), "..", "src", "agent")
     agent_dir = os.path.abspath(agent_dir)
 
-    print(f"📦 Building agent image in ACR '{acr_name}' (remote build)...")
+    tag = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    image_ref = f"contoso-agent:{tag}"
+
+    print(f"[..] Building agent image '{image_ref}' in ACR '{acr_name}' (remote build)...")
     subprocess.run(
-        [AZ, "acr", "build", "--registry", acr_name, "--image", "contoso-agent:latest",
+        [AZ, "acr", "build", "--registry", acr_name, "--image", image_ref,
          "--no-logs", agent_dir],
         check=True,
     )
-    print(f"✅ Agent image pushed to {acr_name}.azurecr.io/contoso-agent:latest")
+    print(f"[OK] Agent image pushed to {acr_name}.azurecr.io/{image_ref}")
+    return tag
 
 
-def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str, credential,
+def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, database_url,
+                                    credential, chart_storage_account, chart_storage_container,
+                                    max_attempts: int = 6, delay_s: int = 30):
+    """Wrap deploy_hosted_agent with retry on AcrPull RBAC propagation.
+
+    `azd up` provisions ACR and the AcrPull role assignment for the AI Project MI
+    just before this runs — propagation can take >60s. Foundry's create_version
+    pulls the image as that MI; until RBAC is live, calls fail with auth errors.
+    """
+    auth_markers = ("forbidden", "unauthorized", "denied", "permission",
+                    "acrpull", "imagepullbackoff", "manifest unknown", "401", "403")
+    last_err: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return deploy_hosted_agent(
+                project_endpoint, acr_name, image_tag, database_url, credential,
+                chart_storage_account=chart_storage_account,
+                chart_storage_container=chart_storage_container,
+            )
+        except Exception as e:
+            msg = str(e).lower()
+            last_err = e
+            if any(m in msg for m in auth_markers) and attempt < max_attempts:
+                print(f"[..] create_version attempt {attempt}/{max_attempts} hit RBAC race: {e}")
+                print(f"     waiting {delay_s}s for AcrPull propagation...")
+                time.sleep(delay_s)
+                continue
+            raise
+    raise RuntimeError(f"create_version failed after {max_attempts} attempts: {last_err}")
+
+
+def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
+                         database_url: str, credential,
                          chart_storage_account: str | None = None,
                          chart_storage_container: str | None = None):
     """Deploy the hosted agent to Foundry via HostedAgentDefinition."""
@@ -207,7 +273,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str,
         allow_preview=True,
     )
 
-    image = f"{acr_name}.azurecr.io/contoso-agent:latest"
+    image = f"{acr_name}.azurecr.io/contoso-agent:{image_tag}"
 
     env_vars = {
         "PROJECT_ENDPOINT": project_endpoint,
@@ -230,7 +296,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, database_url: str,
         ),
     )
 
-    print(f"✅ Deployed hosted agent: {agent.name} (version: {agent.version})")
+    print(f"[OK] Deployed hosted agent: {agent.name} (version: {agent.version}, image: {image})")
     return agent.name, agent.version
 
 
@@ -238,15 +304,11 @@ def start_hosted_agent(account_name: str, project_name: str, agent_name: str, ag
     """Start the hosted agent deployment so it serves requests.
 
     create_version only registers the spec; the deployment sits at min/max=0 (Stopped)
-    until you call `az cognitiveservices agent start`. There is no Python SDK for this
-    yet — the docs use the az CLI. The `cognitiveservices agent` command group is built
-    into core az CLI 2.83.0+ (preview, no extension install required).
-    See: https://learn.microsoft.com/azure/foundry/agents/how-to/manage-hosted-agent
+    until you call `az cognitiveservices agent start`. Idempotent — treats
+    "container already exists with status Running" as success.
     """
-    print(f"▶️  Starting hosted agent '{agent_name}' v{agent_version}...")
-    # Note: --min-replicas/--max-replicas are accepted by `agent update` but not by `agent start`
-    # in current az CLI (2.83.0). Start defaults to min=1/max=1 per docs, which is what we want.
-    subprocess.run(
+    print(f"[>>] Starting hosted agent '{agent_name}' v{agent_version}...")
+    result = subprocess.run(
         [
             AZ, "cognitiveservices", "agent", "start",
             "--account-name", account_name,
@@ -254,9 +316,67 @@ def start_hosted_agent(account_name: str, project_name: str, agent_name: str, ag
             "--name", agent_name,
             "--agent-version", str(agent_version),
         ],
-        check=True,
+        capture_output=True, text=True,
     )
-    print(f"✅ Hosted agent started — should be Running in ~1 minute.")
+    combined = (result.stderr + result.stdout).lower()
+    if result.returncode == 0:
+        print(f"[OK] Hosted agent start requested.")
+    elif "already exists" in combined and "running" in combined:
+        print(f"[OK] Hosted agent v{agent_version} already Running.")
+    else:
+        # Re-raise so the caller's WARN block surfaces it.
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+
+
+def wait_for_agent_running(account_name: str, project_name: str, agent_name: str, agent_version,
+                            timeout_s: int = 600):
+    """Poll `az cognitiveservices agent status` until the hosted agent is Running.
+
+    The status payload reports `.status` (Running | Starting | Failed | ...) and a nested
+    `.container.state` (RunningAtMaxScale | Scaling | ...). We accept any status containing
+    'Running' as success, 'Failed' as terminal failure.
+    """
+    print(f"[..] Waiting for agent v{agent_version} to reach Running (up to {timeout_s}s)...")
+    deadline = time.time() + timeout_s
+    last_status = "unknown"
+    last_err = ""
+    while time.time() < deadline:
+        result = subprocess.run(
+            [
+                AZ, "cognitiveservices", "agent", "status",
+                "--account-name", account_name,
+                "--project-name", project_name,
+                "--name", agent_name,
+                "--agent-version", str(agent_version),
+                "--only-show-errors",
+                "-o", "json",
+            ],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                payload = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                payload = {}
+            last_status = str(payload.get("status", "")) or "unknown"
+            last_err = str(payload.get("error_message", "") or "")
+            if "Running" in last_status:
+                print(f"[OK] Hosted agent v{agent_version} is Running.")
+                return
+            if "Failed" in last_status:
+                raise RuntimeError(
+                    f"Hosted agent v{agent_version} reported status=Failed: {last_err or 'no error_message'}"
+                )
+        else:
+            last_err = (result.stderr or result.stdout or "").strip().splitlines()[-1:] or [""]
+            last_err = last_err[0]
+        print(f"     status={last_status}; sleeping 15s...")
+        time.sleep(15)
+    raise RuntimeError(
+        f"Hosted agent v{agent_version} did not reach Running within {timeout_s}s "
+        f"(last status: {last_status}; last error: {last_err}). "
+        f"Check the Foundry portal for image-pull / start errors."
+    )
 
 
 def generate_env_file(project_endpoint: str, database_url: str):
@@ -269,11 +389,11 @@ def generate_env_file(project_endpoint: str, database_url: str):
         f.write("MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
         f.write(f"DATABASE_URL={database_url}\n")
 
-    print(f"✅ Generated {env_path} for local development")
+    print(f"[OK] Generated {env_path} for local development")
 
 
 def main():
-    print("🚀 Contoso Market Research Agent — Post-Deployment Setup\n")
+    print("Contoso Market Research Agent - Post-Deployment Setup\n")
 
     env = get_azd_env()
     project_endpoint = env.get("PROJECT_ENDPOINT")
@@ -290,12 +410,14 @@ def main():
     chart_storage_account = env.get("CHART_STORAGE_ACCOUNT")
     chart_storage_container = env.get("CHART_STORAGE_CONTAINER")
 
-    if not all([project_endpoint, database_url, acr_name, fqdn]):
-        print("❌ Missing deployment outputs. Run 'azd up' first.")
+    if not all([project_endpoint, database_url, acr_name, fqdn, ai_services_name, project_name]):
+        print("[ERR] Missing deployment outputs. Run 'azd up' first.")
         print(f"   PROJECT_ENDPOINT={project_endpoint}")
         print(f"   DATABASE_URL={database_url}")
         print(f"   AZURE_CONTAINER_REGISTRY_NAME={acr_name}")
         print(f"   POSTGRESQL_FQDN={fqdn}")
+        print(f"   AI_SERVICES_NAME={ai_services_name}")
+        print(f"   PROJECT_NAME={project_name}")
         sys.exit(1)
 
     # Get deployer UPN for AAD auth to PostgreSQL
@@ -304,19 +426,13 @@ def main():
         capture_output=True, text=True, check=True,
     ).stdout.strip()
 
-    # Pin DefaultAzureCredential to the deployment's tenant. Without this it picks up
-    # whatever tenant is "default" in the local az/MSAL cache, which can mismatch the
-    # Techorama tenant and cause "access token isn't valid for this server's tenant".
+    # Pin credentials to the deployment's tenant. AzureCliCredential is the most
+    # reliable on dev machines with multiple tenants — DefaultAzureCredential's
+    # discovery order can grab a stale tenant from the MSAL cache.
     deployment_tenant = subprocess.run(
         [AZ, "account", "show", "--query", "tenantId", "-o", "tsv"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
-    credential = DefaultAzureCredential(
-        additionally_allowed_tenants=["*"],
-        # Force PG token to be issued in the deployment tenant.
-    )
-    # AzureCliCredential is the most reliable on dev machines with multiple tenants.
-    from azure.identity import AzureCliCredential
     credential = AzureCliCredential(tenant_id=deployment_tenant)
 
     # Step 1: Seed PostgreSQL with fake Contoso data
@@ -325,41 +441,40 @@ def main():
     # Step 2: Generate .env for local agent development
     generate_env_file(project_endpoint, database_url)
 
-    # Step 3: Build agent image and deploy as hosted agent
+    # Step 3: Build agent image (immutable timestamp tag) and deploy as hosted agent
     try:
-        build_agent_image(acr_name)
+        image_tag = build_agent_image(acr_name)
 
-        # Allow RBAC role assignments (e.g. AcrPull for AI Project) to propagate
-        # before the hosted agent attempts to pull the container image.
-        print("⏳ Waiting 90 seconds for role assignments to propagate...")
-        time.sleep(90)
-
-        agent_name, agent_version = deploy_hosted_agent(
-            project_endpoint, acr_name, database_url, credential,
+        # Retry create_version against the AcrPull RBAC propagation race.
+        agent_name, agent_version = deploy_hosted_agent_with_retry(
+            project_endpoint, acr_name, image_tag, database_url, credential,
             chart_storage_account=chart_storage_account,
             chart_storage_container=chart_storage_container,
         )
 
-        # create_version only registers the spec — start the deployment so it actually runs.
+        # create_version only registers the spec — start the deployment so it actually runs,
+        # then poll until it actually reports Running.
         try:
             start_hosted_agent(ai_services_name, project_name, agent_name, agent_version)
+            wait_for_agent_running(ai_services_name, project_name, agent_name, agent_version)
         except Exception as start_err:
-            print(f"\n⚠️  Auto-start failed: {start_err}")
+            print(f"\n[ERR] Hosted agent did not reach Running: {start_err}")
             print(f"   Run manually:")
             print(f"     az cognitiveservices agent start \\")
             print(f"       --account-name {ai_services_name} --project-name {project_name} \\")
             print(f"       --name {agent_name} --agent-version {agent_version}")
             print(f"   Or click 'Start agent deployment' in the Foundry portal.")
+            sys.exit(1)
 
-        print(f"\n🎯 Setup complete! Hosted agent deployed: {agent_name}")
+        print(f"\n[OK] Setup complete! Hosted agent deployed: {agent_name} (v{agent_version})")
+    except SystemExit:
+        raise
     except Exception as e:
-        print(f"\n⚠️  Automated agent deployment failed: {e}")
-        print(f"\n📋 Deploy the agent manually:")
-        print(f"   Option 1: Open src/agent in VS Code and deploy via Foundry extension")
-        print(f"   Option 2: cd src/agent && agent deploy")
-        print(f"   Option 3: Build and push manually:")
-        print(f"     az acr build --registry {acr_name} --image contoso-agent:latest src/agent")
-        print(f"     Then create agent version in Foundry portal")
+        print(f"\n[ERR] Automated agent deployment failed: {e}")
+        print(f"\nDeploy the agent manually:")
+        print(f"   az acr build --registry {acr_name} --image contoso-agent:manual src/agent")
+        print(f"   Then create the agent version in the Foundry portal.")
+        sys.exit(1)
 
     print(f"\n   Database: (PostgreSQL connected)")
     print(f"   Project Endpoint: {project_endpoint}")

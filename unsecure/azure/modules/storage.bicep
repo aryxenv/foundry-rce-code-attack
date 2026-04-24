@@ -1,5 +1,5 @@
 // Storage account for hosted-agent chart uploads.
-// The CodeExecution tool uploads matplotlib output here and returns a
+// The execute_code tool uploads matplotlib output here and returns a
 // short-lived user-delegation SAS URL, instead of base64-inlining the
 // image (which would burn ~17K tokens per chart).
 
@@ -23,7 +23,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: false
-    allowSharedKeyAccess: true
+    allowSharedKeyAccess: false
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       bypass: 'AzureServices'
@@ -62,7 +62,7 @@ resource lifecycle 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05
                 'blockBlob'
               ]
               prefixMatch: [
-                containerName
+                '${containerName}/'
               ]
             }
             actions: {

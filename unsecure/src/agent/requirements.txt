@@ -1,6 +1,5 @@
-agent-framework==1.0.0rc3
-agent-framework-azure-ai==1.0.0rc3
-azure-ai-agentserver-agentframework==1.0.0b17
+agent-framework>=1.1.1
+agent-framework-foundry-hosting
 psycopg2-binary
 matplotlib
 python-dotenv

@@ -14,18 +14,6 @@ param deployerPrincipalId string
 ])
 param deployerPrincipalType string = 'User'
 
-param bingAccountName string = ''
-
-@description('Bing account resource ID for connection metadata.')
-param bingAccountId string = ''
-
-@description('Bing account location (typically global).')
-param bingAccountLocation string = 'global'
-
-@description('Bing API key (sourced from listKeys at deploy time).')
-@secure()
-param bingAccountKey string = ''
-
 var allTags = union(tags, { SecurityControl: 'Ignore' })
 var aiProjectName = !empty(projectName) ? projectName : '${name}-project'
 
@@ -76,7 +64,7 @@ resource accountCapabilityHost 'Microsoft.CognitiveServices/accounts/capabilityH
   ]
 }
 
-resource modelDeployment'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
+resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
   parent: aiServices
   name: modelName
   sku: {
@@ -138,26 +126,16 @@ resource projectAzureAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04
   }
 }
 
-// --- Bing Grounding connection for agents (account-scoped, per Microsoft 45-basic-agent-bing sample) ---
-resource bingConnection 'Microsoft.CognitiveServices/accounts/connections@2025-04-01-preview' = if (!empty(bingAccountName)) {
-  parent: aiServices
-  name: 'bing-grounding'
-  dependsOn: [
-    aiProject
-  ]
+// The deployer also needs Azure AI User to list/manage agents through the
+// project data plane (https://<account>.services.ai.azure.com/api/projects/...).
+// Without this the Foundry portal shows "Project not found" on the Agents tab.
+resource deployerAzureAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aiServices
+  name: guid(aiServices.id, deployerPrincipalId, '53ca6127-db72-4b80-b1b0-d745d6d5456d')
   properties: {
-    category: 'ApiKey'
-    target: 'https://api.bing.microsoft.com/'
-    authType: 'ApiKey'
-    isSharedToAll: true
-    credentials: {
-      key: bingAccountKey
-    }
-    metadata: {
-      ApiType: 'Azure'
-      Location: bingAccountLocation
-      ResourceId: bingAccountId
-    }
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
+    principalId: deployerPrincipalId
+    principalType: deployerPrincipalType
   }
 }
 

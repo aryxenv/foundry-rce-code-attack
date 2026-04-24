@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "6120723361254253606"
+      "templateHash": "10973577449765537543"
     }
   },
   "parameters": {
@@ -42,7 +42,6 @@
     "envPrefix": "[take(replace(toLower(parameters('environmentName')), '-', ''), 12)]",
     "acrName": "[format('{0}{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
     "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
-    "bingName": "[format('{0}bing{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
     "storageName": "[take(format('{0}st{1}', variables('envPrefix'), variables('resourceToken')), 24)]"
   },
   "resources": [
@@ -135,89 +134,6 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "bing",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[variables('bingName')]"
-          },
-          "location": {
-            "value": "global"
-          },
-          "tags": {
-            "value": "[variables('tags')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "16869436708436900993"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "global"
-            },
-            "tags": {
-              "type": "object"
-            }
-          },
-          "variables": {
-            "allTags": "[union(parameters('tags'), createObject('SecurityControl', 'Ignore'))]"
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Bing/accounts",
-              "apiVersion": "2020-06-10",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[variables('allTags')]",
-              "kind": "Bing.Grounding",
-              "sku": {
-                "name": "G1"
-              }
-            }
-          ],
-          "outputs": {
-            "endpoint": {
-              "type": "string",
-              "value": "https://api.bing.microsoft.com/"
-            },
-            "key": {
-              "type": "string",
-              "value": "[listKeys(resourceId('Microsoft.Bing/accounts', parameters('name')), '2020-06-10').key1]"
-            },
-            "bingAccountName": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "bingAccountId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Bing/accounts', parameters('name'))]"
-            },
-            "bingAccountLocation": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Bing/accounts', parameters('name')), '2020-06-10', 'full').location]"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
       "name": "ai",
       "properties": {
         "expressionEvaluationOptions": {
@@ -239,18 +155,6 @@
           },
           "deployerPrincipalType": {
             "value": "[parameters('deployerPrincipalType')]"
-          },
-          "bingAccountName": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountName.value]"
-          },
-          "bingAccountKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.key.value]"
-          },
-          "bingAccountId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountId.value]"
-          },
-          "bingAccountLocation": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountLocation.value]"
           }
         },
         "template": {
@@ -260,7 +164,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "9589896361440496843"
+              "templateHash": "12931053664562245867"
             }
           },
           "parameters": {
@@ -298,31 +202,6 @@
               ],
               "metadata": {
                 "description": "Type of the deployer principal. Use ServicePrincipal for CI / managed identity deploys."
-              }
-            },
-            "bingAccountName": {
-              "type": "string",
-              "defaultValue": ""
-            },
-            "bingAccountId": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Bing account resource ID for connection metadata."
-              }
-            },
-            "bingAccountLocation": {
-              "type": "string",
-              "defaultValue": "global",
-              "metadata": {
-                "description": "Bing account location (typically global)."
-              }
-            },
-            "bingAccountKey": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Bing API key (sourced from listKeys at deploy time)."
               }
             }
           },
@@ -453,30 +332,6 @@
                 "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]",
                 "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
               ]
-            },
-            {
-              "condition": "[not(empty(parameters('bingAccountName')))]",
-              "type": "Microsoft.CognitiveServices/accounts/connections",
-              "apiVersion": "2025-04-01-preview",
-              "name": "[format('{0}/{1}', parameters('name'), 'bing-grounding')]",
-              "properties": {
-                "category": "ApiKey",
-                "target": "https://api.bing.microsoft.com/",
-                "authType": "ApiKey",
-                "isSharedToAll": true,
-                "credentials": {
-                  "key": "[parameters('bingAccountKey')]"
-                },
-                "metadata": {
-                  "ApiType": "Azure",
-                  "Location": "[parameters('bingAccountLocation')]",
-                  "ResourceId": "[parameters('bingAccountId')]"
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]",
-                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
-              ]
             }
           ],
           "outputs": {
@@ -510,10 +365,7 @@
             }
           }
         }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'bing')]"
-      ]
+      }
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -857,14 +709,6 @@
     "DATABASE_URL": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgresql'), '2025-04-01').outputs.connectionString.value]"
-    },
-    "BING_ENDPOINT": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.endpoint.value]"
-    },
-    "BING_ACCOUNT_NAME": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'bing'), '2025-04-01').outputs.bingAccountName.value]"
     },
     "AI_SERVICES_ENDPOINT": {
       "type": "string",
