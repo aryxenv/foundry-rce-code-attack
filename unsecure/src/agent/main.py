@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-from agent_framework_azure_ai import AzureAIClient
+from agent_framework.azure import AzureAIAgentClient
 from azure.ai.agentserver.agentframework import from_agent_framework
 from azure.identity.aio import DefaultAzureCredential
 
@@ -52,13 +52,13 @@ axis labels, and legends.
 
 Step 3 - Reply.
 Write a short natural-language summary of what the chart shows (2-4 sentences citing \
-concrete numbers from Step 1), then on a new line embed the chart as a markdown image \
-using the SAS URL from Step 2:
+concrete numbers from Step 1). Then on a NEW line write exactly:
 
-    ![chart](<paste the full SAS URL here>)
+    Chart URL: <paste the full URL from Step 2 here>
 
-Then on the next line repeat the URL as a plain markdown link `[Open chart](<url>)` so \
-the user can click through. Never reply with only the URL and never omit the summary.
+Use the verbatim URL — do not wrap it in markdown image syntax, do not wrap it in \
+angle brackets or parentheses, do not shorten it. Never reply with only the URL and \
+never omit the summary.
 
 Do not call `execute_code` before `get_market_data`. Do not skip the visualization step \
 when the user asks for a chart, plot, or graph.\
@@ -68,10 +68,10 @@ when the user asks for a chart, plot, or graph.\
 async def main():
     """Run the hosted agent: one ChatAgent with both tools."""
     async with DefaultAzureCredential() as credential:
-        client = AzureAIClient(
+        client = AzureAIAgentClient(
+            credential=credential,
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT_NAME,
-            credential=credential,
         )
 
         agent = client.as_agent(
