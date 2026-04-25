@@ -22,7 +22,7 @@ from hosted_file_response_patch import apply_hosted_file_response_patch
 from tools import get_market_data
 
 PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
-MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o")
+MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
 
 CONTOSO_INSTRUCTIONS = """\
 You are Contoso's market research analyst. You answer business questions by retrieving \

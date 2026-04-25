@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "6004724535131016318"
+      "templateHash": "13867165970938749642"
     }
   },
   "parameters": {
@@ -175,7 +175,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "349908620272552685"
+              "templateHash": "6583725399437590032"
             }
           },
           "parameters": {
@@ -190,11 +190,11 @@
             },
             "modelName": {
               "type": "string",
-              "defaultValue": "gpt-4o"
+              "defaultValue": "gpt-4o-mini"
             },
             "modelVersion": {
               "type": "string",
-              "defaultValue": "2024-11-20"
+              "defaultValue": "2024-07-18"
             },
             "projectName": {
               "type": "string",
@@ -274,7 +274,7 @@
               "name": "[format('{0}/{1}', parameters('name'), parameters('modelName'))]",
               "sku": {
                 "name": "GlobalStandard",
-                "capacity": 450
+                "capacity": 500
               },
               "properties": {
                 "model": {

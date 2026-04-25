@@ -12,7 +12,7 @@
     "storageAccount": "CHART_STORAGE_ACCOUNT",
     "storageContainer": "CHART_STORAGE_CONTAINER"
   },
-  "modelDeploymentName": "gpt-4o",
+  "modelDeploymentName": "gpt-4o-mini",
   "containerEnv": [
     { "name": "FOUNDRY_PROJECT_ENDPOINT", "from": "projectEndpoint" },
     { "name": "PROJECT_ENDPOINT",         "from": "projectEndpoint" },

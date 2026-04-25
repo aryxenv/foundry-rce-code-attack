@@ -1,8 +1,8 @@
 param name string
 param location string
 param tags object
-param modelName string = 'gpt-4o'
-param modelVersion string = '2024-11-20'
+param modelName string = 'gpt-4o-mini'
+param modelVersion string = '2024-07-18'
 param projectName string = ''
 param deployerPrincipalId string
 
@@ -69,7 +69,7 @@ resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-
   name: modelName
   sku: {
     name: 'GlobalStandard'
-    capacity: 450
+    capacity: 500
   }
   properties: {
     model: {

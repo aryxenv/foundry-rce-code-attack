@@ -289,7 +289,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
 
     env_vars = {
         "PROJECT_ENDPOINT": project_endpoint,
-        "MODEL_DEPLOYMENT_NAME": "gpt-4o",
+        "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
         "DATABASE_URL": database_url,
     }
     if chart_storage_account:
@@ -403,7 +403,7 @@ def generate_env_file(
 
     with open(env_path, "w") as f:
         f.write(f"PROJECT_ENDPOINT={project_endpoint}\n")
-        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o\n")
+        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
         f.write(f"DATABASE_URL={database_url}\n")
         if chart_storage_account:
             f.write(f"CHART_STORAGE_ACCOUNT={chart_storage_account}\n")

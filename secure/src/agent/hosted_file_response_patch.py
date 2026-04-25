@@ -15,7 +15,7 @@ import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, AsyncIterable
+from typing import AsyncIterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -30,28 +30,10 @@ from azure.ai.agentserver.agentframework.models.agent_framework_output_non_strea
 )
 from azure.ai.agentserver.agentframework.models.agent_framework_output_streaming_converter import (
     AgentFrameworkOutputStreamingConverter,
-    _FunctionCallOutputStreamingState,
-    _FunctionCallStreamingState,
-    _TextContentStreamingState,
-)
-from azure.ai.agentserver.agentframework.models.utils.async_iter import chunk_on_change, peek
-from azure.ai.agentserver.core.models.projects import (
-    AnnotationFilePath,
-    ItemContentOutputText,
-    ResponseCompletedEvent,
-    ResponseContentPartAddedEvent,
-    ResponseContentPartDoneEvent,
-    ResponseCreatedEvent,
-    ResponseInProgressEvent,
-    ResponseOutputItemAddedEvent,
-    ResponseOutputItemDoneEvent,
-    ResponsesAssistantMessageItemResource,
-    ResponseTextDeltaEvent,
-    ResponseTextDoneEvent,
 )
 
 _PATCH_MARKER = "_contoso_hosted_file_response_patch"
-_FOUNDARY_FILES_API_VERSION = "2025-05-15-preview"
+_FOUNDRY_FILES_API_VERSION = "2025-05-15-preview"
 _TOKEN_SCOPE = "https://ai.azure.com/.default"
 _MAX_HOSTED_FILE_BYTES = 5_000_000
 _DOWNLOAD_ATTEMPTS = 12
@@ -64,16 +46,12 @@ _SAS_TTL = timedelta(hours=1)
 _credential: DefaultAzureCredential | None = None
 
 
-def _hosted_file_annotation(file_id: str) -> AnnotationFilePath:
-    return AnnotationFilePath(file_id=file_id, index=0)
-
-
 def _hosted_file_url(file_id: str) -> str | None:
     project_endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
     if not project_endpoint:
         return None
     safe_file_id = quote(file_id, safe="")
-    return f"{project_endpoint.rstrip('/')}/files/{safe_file_id}/content?api-version={_FOUNDARY_FILES_API_VERSION}"
+    return f"{project_endpoint.rstrip('/')}/files/{safe_file_id}/content?api-version={_FOUNDRY_FILES_API_VERSION}"
 
 
 def _get_credential() -> DefaultAzureCredential:
@@ -206,40 +184,18 @@ def _hosted_file_text(file_id: str) -> Content:
     if chart_url:
         return Content.from_text(
             f"\n\nChart URL: {chart_url}\n",
-            annotations=[_hosted_file_annotation(file_id)],
         )
 
     text = (
         "\n\nGenerated visual file id: "
         f"`{file_id}`. The generated file could not be attached before the response completed.\n\n"
     )
-    return Content.from_text(
-        text,
-        annotations=[_hosted_file_annotation(file_id)],
-    )
-
-
-def _output_text_part(text: str, annotations: list[Any] | None = None) -> ItemContentOutputText:
-    return ItemContentOutputText(text=text, annotations=annotations or [], logprobs=[])
+    return Content.from_text(text)
 
 
 def _sanitize_model_text(text: str) -> str:
     without_markdown_links = _SANDBOX_MARKDOWN_LINK_PATTERN.sub("", text)
     return _SANDBOX_URI_PATTERN.sub("[generated visual attached]", without_markdown_links)
-
-
-def _annotation_dict(annotation: Any) -> dict[str, Any]:
-    if isinstance(annotation, dict):
-        return annotation
-    if hasattr(annotation, "to_dict"):
-        return annotation.to_dict()
-    if getattr(annotation, "type", None) == "file_path" and getattr(annotation, "file_id", None):
-        return {
-            "type": "file_path",
-            "file_id": annotation.file_id,
-            "index": getattr(annotation, "index", 0),
-        }
-    return {}
 
 
 def _apply_non_streaming_patch() -> None:
@@ -249,11 +205,6 @@ def _apply_non_streaming_patch() -> None:
         text_value = _sanitize_model_text(content.text or "")
         if not text_value:
             return
-        annotations = [
-            annotation
-            for annotation in (_annotation_dict(item) for item in (content.annotations or []))
-            if annotation
-        ]
         item_id = self._context.id_generator.generate_message_id()  # pylint: disable=protected-access
         sink.append(
             {
@@ -265,7 +216,7 @@ def _apply_non_streaming_patch() -> None:
                     {
                         "type": "output_text",
                         "text": text_value,
-                        "annotations": annotations,
+                        "annotations": [],
                         "logprobs": [],
                     }
                 ],
@@ -305,149 +256,24 @@ async def _read_updates_with_hosted_files(
             continue
 
         author_name = getattr(update, "author_name", "") or ""
-        accepted_types = {"text", "function_call", "user_input_request", "function_result", "error"}
+        accepted_types = {"function_call", "user_input_request", "function_result", "error"}
         for content in update.contents:
             if content.type == "hosted_file":
                 if content.file_id:
                     non_streaming_logger.info("Surfacing Code Interpreter hosted file: %s", content.file_id)
                     yield (_hosted_file_text(content.file_id), author_name)
                 continue
+            if content.type == "text":
+                text_value = _sanitize_model_text(content.text or "")
+                if text_value:
+                    yield (Content.from_text(text_value), author_name)
+                continue
             if content.type in accepted_types:
                 yield (content, author_name)
 
 
-async def _convert_text_contents_with_annotations(
-    self: _TextContentStreamingState,
-    contents: AsyncIterable[Content],
-    author_name: str,
-) -> AsyncIterable[Any]:
-    buffered_contents = [content async for content in contents]
-    text_contents = [content for content in buffered_contents if content.type == "text"]
-
-    if not text_contents:
-        return
-
-    item_id = self._parent.context.id_generator.generate_message_id()  # pylint: disable=protected-access
-    output_index = self._parent.next_output_index()  # pylint: disable=protected-access
-
-    yield ResponseOutputItemAddedEvent(
-        sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-        output_index=output_index,
-        item=ResponsesAssistantMessageItemResource(
-            id=item_id,
-            status="in_progress",
-            content=[],
-            created_by=self._parent._build_created_by(author_name),  # pylint: disable=protected-access
-        ),
-    )
-
-    yield ResponseContentPartAddedEvent(
-        sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-        item_id=item_id,
-        output_index=output_index,
-        content_index=0,
-        part=_output_text_part(""),
-    )
-
-    text = ""
-    annotations: list[Any] = []
-    for content in text_contents:
-        if content.annotations:
-            annotations.extend(content.annotations)
-        delta = _sanitize_model_text(content.text or "")
-        if not delta:
-            continue
-        text += delta
-        yield ResponseTextDeltaEvent(
-            sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-            item_id=item_id,
-            output_index=output_index,
-            content_index=0,
-            delta=delta,
-        )
-
-    yield ResponseTextDoneEvent(
-        sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-        item_id=item_id,
-        output_index=output_index,
-        content_index=0,
-        text=text,
-    )
-
-    content_part = _output_text_part(text, annotations)
-    yield ResponseContentPartDoneEvent(
-        sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-        item_id=item_id,
-        output_index=output_index,
-        content_index=0,
-        part=content_part,
-    )
-
-    item = ResponsesAssistantMessageItemResource(
-        id=item_id,
-        status="completed",
-        content=[content_part],
-        created_by=self._parent._build_created_by(author_name),  # pylint: disable=protected-access
-    )
-    yield ResponseOutputItemDoneEvent(
-        sequence_number=self._parent.next_sequence(),  # pylint: disable=protected-access
-        output_index=output_index,
-        item=item,
-    )
-
-    self._parent.add_completed_output_item(item)  # pylint: disable=protected-access
-
-
-async def _convert_streaming_with_hosted_files(
-    self: AgentFrameworkOutputStreamingConverter,
-    updates: AsyncIterable[AgentResponseUpdate],
-) -> AsyncIterable[Any]:
-    self._ensure_response_started()  # pylint: disable=protected-access
-
-    created_response = self._build_response(status="in_progress")  # pylint: disable=protected-access
-    yield ResponseCreatedEvent(sequence_number=self.next_sequence(), response=created_response)
-    yield ResponseInProgressEvent(sequence_number=self.next_sequence(), response=created_response)
-
-    def is_changed(a: AgentResponseUpdate | None, b: AgentResponseUpdate | None) -> bool:
-        return a is not None and b is not None and a.message_id != b.message_id
-
-    async for group in chunk_on_change(updates, is_changed):
-        has_value, first_tuple, contents_with_author = await peek(self._read_updates(group))  # pylint: disable=protected-access
-        if not has_value or first_tuple is None:
-            continue
-
-        first, author_name = first_tuple
-
-        state = None
-        if first.type == "text":
-            state = _TextContentStreamingState(self)
-        elif first.type in ("function_call", "user_input_request"):
-            state = _FunctionCallStreamingState(self, self._hitl_helper)  # pylint: disable=protected-access
-        elif first.type == "function_result":
-            state = _FunctionCallOutputStreamingState(self)
-        elif first.type == "error":
-            error_msg = f"ErrorContent received: code={first.error_code}, message={first.message}"
-            raise ValueError(error_msg)
-        if not state:
-            continue
-
-        async def extract_contents() -> AsyncIterable[Content]:
-            async for content, _ in contents_with_author:
-                yield content
-
-        async for content in state.convert_contents(extract_contents(), author_name):
-            yield content
-
-    yield ResponseCompletedEvent(
-        sequence_number=self.next_sequence(),
-        response=self._build_response(status="completed"),  # pylint: disable=protected-access
-    )
-
-
 def _apply_streaming_patch() -> None:
     AgentFrameworkOutputStreamingConverter._read_updates = _read_updates_with_hosted_files
-    AgentFrameworkOutputStreamingConverter.convert = _convert_streaming_with_hosted_files
-    _TextContentStreamingState.convert_contents = _convert_text_contents_with_annotations
 
 
 def apply_hosted_file_response_patch() -> None:
