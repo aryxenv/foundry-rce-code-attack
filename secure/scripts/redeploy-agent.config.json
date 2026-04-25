@@ -1,0 +1,25 @@
+{
+  "agentName": "contoso-market-research",
+  "imageRepo": "contoso-agent",
+  "dockerfile": "src/agent/Dockerfile",
+  "buildContext": "src/agent",
+  "azdEnvVars": {
+    "acr": "AZURE_CONTAINER_REGISTRY_NAME",
+    "aiServices": "AI_SERVICES_NAME",
+    "project": "PROJECT_NAME",
+    "projectEndpoint": "PROJECT_ENDPOINT",
+    "databaseUrl": "DATABASE_URL",
+    "storageAccount": "CHART_STORAGE_ACCOUNT",
+    "storageContainer": "CHART_STORAGE_CONTAINER"
+  },
+  "modelDeploymentName": "gpt-4o-mini",
+  "containerEnv": [
+    { "name": "FOUNDRY_PROJECT_ENDPOINT", "from": "projectEndpoint" },
+    { "name": "PROJECT_ENDPOINT",         "from": "projectEndpoint" },
+    { "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME", "literal": "modelDeploymentName" },
+    { "name": "MODEL_DEPLOYMENT_NAME",         "literal": "modelDeploymentName" },
+    { "name": "DATABASE_URL",             "from": "databaseUrl" },
+    { "name": "CHART_STORAGE_ACCOUNT",    "from": "storageAccount" },
+    { "name": "CHART_STORAGE_CONTAINER",  "from": "storageContainer" }
+  ]
+}
