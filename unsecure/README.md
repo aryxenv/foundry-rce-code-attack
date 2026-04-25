@@ -11,7 +11,7 @@ Demonstrates how a code interpreter co-located in the same container as an AI ag
 
 ## Architecture
 
-![Architecture diagram](./unsafe_architecture.png)
+![Unsecure Architecture](./unsecure_architecture.png)
 
 | Resource                   | Purpose                                                             |
 | -------------------------- | ------------------------------------------------------------------- |
@@ -57,7 +57,7 @@ The **Contoso Market Research Agent** is a **single hosted ChatAgent** with two 
 
 Normal flow: the model calls `get_market_data` first to fetch sanitized data, then calls `execute_code` to render a chart from that clean data.
 
-The hosted agent runs as a single Foundry container (`contoso-market-research`); both tool callbacks execute *locally* inside that container, which is exactly the isolation gap the demo exploits.
+The hosted agent runs as a single Foundry container (`contoso-market-research`); both tool callbacks execute _locally_ inside that container, which is exactly the isolation gap the demo exploits.
 
 ## The Attack
 

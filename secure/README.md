@@ -6,15 +6,15 @@ This app keeps the controlled PostgreSQL data-access flow, but uses Foundry's in
 
 ## Architecture
 
-![Architecture diagram](./safe_architecture.png)
+![Secure Architecture](./safe_architecture.png)
 
-| Resource | Purpose |
-| --- | --- |
-| AI Services + Project | Foundry project for the hosted market research agent |
-| ACR | Hosts the secure agent container image |
-| PostgreSQL Flexible Server | Contoso database with fake customers, sales, and employee compensation data |
-| Foundry Code Interpreter | Managed sandbox for chart generation and analysis from sanitized data |
-| Storage Account | Private short-lived chart artifact delivery for hosted-agent UI compatibility |
+| Resource                   | Purpose                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| AI Services + Project      | Foundry project for the hosted market research agent                          |
+| ACR                        | Hosts the secure agent container image                                        |
+| PostgreSQL Flexible Server | Contoso database with fake customers, sales, and employee compensation data   |
+| Foundry Code Interpreter   | Managed sandbox for chart generation and analysis from sanitized data         |
+| Storage Account            | Private short-lived chart artifact delivery for hosted-agent UI compatibility |
 
 ## Security model
 

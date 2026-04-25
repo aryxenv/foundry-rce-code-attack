@@ -15,6 +15,14 @@ No real data is used.
 
 The point is not that "LLMs are bad." The point is that your architecture may create vulnerabilities which make an unexpected RCE/Code Attack possible: if the model can be tricked into writing code, that code must not run next to secrets, databases, or privileged identities.
 
+### Unsecure Architecture
+
+![Unsecure Architecture](./unsecure/unsecure_architecture.png)
+
+### Secure Architecture
+
+![Secure Architecture](./secure/safe_architecture.png)
+
 ## Try it yourself
 
 Prereqs: Azure CLI, Azure Developer CLI (`azd`), `uv`, and access to Azure AI Foundry.
