@@ -4,3 +4,4 @@ azure-ai-agentserver-agentframework==1.0.0b17
 psycopg2-binary
 python-dotenv
 azure-identity
+azure-storage-blob

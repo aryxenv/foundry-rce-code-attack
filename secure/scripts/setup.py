@@ -228,8 +228,17 @@ def build_agent_image(acr_name: str) -> str:
     return tag
 
 
-def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, database_url,
-                                    credential, max_attempts: int = 6, delay_s: int = 30):
+def deploy_hosted_agent_with_retry(
+    project_endpoint,
+    acr_name,
+    image_tag,
+    database_url,
+    credential,
+    chart_storage_account: str | None = None,
+    chart_storage_container: str | None = None,
+    max_attempts: int = 6,
+    delay_s: int = 30,
+):
     """Wrap deploy_hosted_agent with retry on AcrPull RBAC propagation.
 
     `azd up` provisions ACR and the AcrPull role assignment for the AI Project MI
@@ -242,7 +251,13 @@ def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, databa
     for attempt in range(1, max_attempts + 1):
         try:
             return deploy_hosted_agent(
-                project_endpoint, acr_name, image_tag, database_url, credential,
+                project_endpoint,
+                acr_name,
+                image_tag,
+                database_url,
+                credential,
+                chart_storage_account=chart_storage_account,
+                chart_storage_container=chart_storage_container,
             )
         except Exception as e:
             msg = str(e).lower()
@@ -257,7 +272,9 @@ def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, databa
 
 
 def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
-                         database_url: str, credential):
+                         database_url: str, credential,
+                         chart_storage_account: str | None = None,
+                         chart_storage_container: str | None = None):
     """Deploy the hosted agent to Foundry via HostedAgentDefinition."""
     from azure.ai.projects import AIProjectClient
     from azure.ai.projects.models import HostedAgentDefinition, ProtocolVersionRecord, AgentProtocol
@@ -272,9 +289,14 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
 
     env_vars = {
         "PROJECT_ENDPOINT": project_endpoint,
-        "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
+        "MODEL_DEPLOYMENT_NAME": "gpt-4o",
         "DATABASE_URL": database_url,
     }
+    if chart_storage_account:
+        env_vars["CHART_STORAGE_ACCOUNT"] = chart_storage_account
+    if chart_storage_container:
+        env_vars["CHART_STORAGE_CONTAINER"] = chart_storage_container
+
     agent = client.agents.create_version(
         agent_name="contoso-market-research-secure",
         definition=HostedAgentDefinition(
@@ -369,15 +391,24 @@ def wait_for_agent_running(account_name: str, project_name: str, agent_name: str
     )
 
 
-def generate_env_file(project_endpoint: str, database_url: str):
+def generate_env_file(
+    project_endpoint: str,
+    database_url: str,
+    chart_storage_account: str | None = None,
+    chart_storage_container: str | None = None,
+):
     """Generate .env file for local agent development."""
     agent_dir = os.path.join(os.path.dirname(__file__), "..", "src", "agent")
     env_path = os.path.join(os.path.abspath(agent_dir), ".env")
 
     with open(env_path, "w") as f:
         f.write(f"PROJECT_ENDPOINT={project_endpoint}\n")
-        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
+        f.write("MODEL_DEPLOYMENT_NAME=gpt-4o\n")
         f.write(f"DATABASE_URL={database_url}\n")
+        if chart_storage_account:
+            f.write(f"CHART_STORAGE_ACCOUNT={chart_storage_account}\n")
+        if chart_storage_container:
+            f.write(f"CHART_STORAGE_CONTAINER={chart_storage_container}\n")
 
     print(f"[OK] Generated {env_path} for local development")
 
@@ -392,6 +423,8 @@ def main():
         or env.get("AZURE_AIPROJECT_ENDPOINT")
     )
     database_url = env.get("DATABASE_URL")
+    chart_storage_account = env.get("CHART_STORAGE_ACCOUNT")
+    chart_storage_container = env.get("CHART_STORAGE_CONTAINER")
     acr_name = env.get("AZURE_CONTAINER_REGISTRY_NAME")
     fqdn = env.get("POSTGRESQL_FQDN")
     ai_services_name = env.get("AI_SERVICES_NAME")
@@ -430,7 +463,7 @@ def main():
     seed_database(fqdn, deployer_upn, credential)
 
     # Step 2: Generate .env for local agent development
-    generate_env_file(project_endpoint, database_url)
+    generate_env_file(project_endpoint, database_url, chart_storage_account, chart_storage_container)
 
     # Step 3: Build agent image (immutable timestamp tag) and deploy as hosted agent
     try:
@@ -438,7 +471,13 @@ def main():
 
         # Retry create_version against the AcrPull RBAC propagation race.
         agent_name, agent_version = deploy_hosted_agent_with_retry(
-            project_endpoint, acr_name, image_tag, database_url, credential,
+            project_endpoint,
+            acr_name,
+            image_tag,
+            database_url,
+            credential,
+            chart_storage_account=chart_storage_account,
+            chart_storage_container=chart_storage_container,
         )
 
         # create_version only registers the spec — start the deployment so it actually runs,

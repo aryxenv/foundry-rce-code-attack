@@ -8,14 +8,18 @@
     "aiServices": "AI_SERVICES_NAME",
     "project": "PROJECT_NAME",
     "projectEndpoint": "AZURE_AI_PROJECT_ENDPOINT",
-    "databaseUrl": "DATABASE_URL"
+    "databaseUrl": "DATABASE_URL",
+    "storageAccount": "CHART_STORAGE_ACCOUNT",
+    "storageContainer": "CHART_STORAGE_CONTAINER"
   },
-  "modelDeploymentName": "gpt-4o-mini",
+  "modelDeploymentName": "gpt-4o",
   "containerEnv": [
     { "name": "FOUNDRY_PROJECT_ENDPOINT", "from": "projectEndpoint" },
     { "name": "PROJECT_ENDPOINT",         "from": "projectEndpoint" },
     { "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME", "literal": "modelDeploymentName" },
     { "name": "MODEL_DEPLOYMENT_NAME",         "literal": "modelDeploymentName" },
-    { "name": "DATABASE_URL",             "from": "databaseUrl" }
+    { "name": "DATABASE_URL",             "from": "databaseUrl" },
+    { "name": "CHART_STORAGE_ACCOUNT",    "from": "storageAccount" },
+    { "name": "CHART_STORAGE_CONTAINER",  "from": "storageContainer" }
   ]
 }

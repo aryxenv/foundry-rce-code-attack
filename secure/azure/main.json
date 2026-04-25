@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "8814011993369410833"
+      "templateHash": "6004724535131016318"
     }
   },
   "parameters": {
@@ -42,7 +42,8 @@
     },
     "envPrefix": "[take(replace(toLower(parameters('environmentName')), '-', ''), 12)]",
     "acrName": "[format('{0}{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
-    "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]"
+    "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
+    "storageName": "[take(format('{0}st{1}', variables('envPrefix'), variables('resourceToken')), 24)]"
   },
   "resources": {
     "acr": {
@@ -174,7 +175,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "6583725399437590032"
+              "templateHash": "349908620272552685"
             }
           },
           "parameters": {
@@ -189,11 +190,11 @@
             },
             "modelName": {
               "type": "string",
-              "defaultValue": "gpt-4o-mini"
+              "defaultValue": "gpt-4o"
             },
             "modelVersion": {
               "type": "string",
-              "defaultValue": "2024-07-18"
+              "defaultValue": "2024-11-20"
             },
             "projectName": {
               "type": "string",
@@ -273,7 +274,7 @@
               "name": "[format('{0}/{1}', parameters('name'), parameters('modelName'))]",
               "sku": {
                 "name": "GlobalStandard",
-                "capacity": 500
+                "capacity": 450
               },
               "properties": {
                 "model": {
@@ -543,6 +544,174 @@
       "dependsOn": [
         "ai"
       ]
+    },
+    "storage": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "storage",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[variables('storageName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "principalId": {
+            "value": "[reference('ai').outputs.projectPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "2492625278376227786"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the secure hosted agent runtime identity (AI project MI). Granted Storage Blob Data Contributor."
+              }
+            },
+            "containerName": {
+              "type": "string",
+              "defaultValue": "chart-uploads"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "accessTier": "Hot",
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": false,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Allow"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}/{2}', parameters('name'), 'default', parameters('containerName'))]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('name'), 'default')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "properties": {
+                "policy": {
+                  "rules": [
+                    {
+                      "name": "delete-old-charts",
+                      "enabled": true,
+                      "type": "Lifecycle",
+                      "definition": {
+                        "filters": {
+                          "blobTypes": [
+                            "blockBlob"
+                          ],
+                          "prefixMatch": [
+                            "[format('{0}/', parameters('containerName'))]"
+                          ]
+                        },
+                        "actions": {
+                          "baseBlob": {
+                            "delete": {
+                              "daysAfterModificationGreaterThan": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), parameters('principalId'), 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "storageAccountName": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "containerName": {
+              "type": "string",
+              "value": "[parameters('containerName')]"
+            },
+            "blobEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), '2023-05-01').primaryEndpoints.blob]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "ai"
+      ]
     }
   },
   "outputs": {
@@ -589,6 +758,14 @@
     "PROJECT_NAME": {
       "type": "string",
       "value": "[reference('ai').outputs.projectName.value]"
+    },
+    "CHART_STORAGE_ACCOUNT": {
+      "type": "string",
+      "value": "[reference('storage').outputs.storageAccountName.value]"
+    },
+    "CHART_STORAGE_CONTAINER": {
+      "type": "string",
+      "value": "[reference('storage').outputs.containerName.value]"
     }
   }
 }
