@@ -1,11 +1,12 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "10973577449765537543"
+      "templateHash": "8814011993369410833"
     }
   },
   "parameters": {
@@ -41,25 +42,34 @@
     },
     "envPrefix": "[take(replace(toLower(parameters('environmentName')), '-', ''), 12)]",
     "acrName": "[format('{0}{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
-    "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]",
-    "storageName": "[take(format('{0}st{1}', variables('envPrefix'), variables('resourceToken')), 24)]"
+    "pgName": "[format('{0}pg{1}', variables('envPrefix'), take(variables('resourceToken'), 6))]"
   },
-  "resources": [
-    {
+  "resources": {
+    "acr": {
+      "existing": true,
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('acrName')]",
+      "dependsOn": [
+        "containerRegistry"
+      ]
+    },
+    "acrPullRole": {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
       "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), parameters('environmentName'), 'acrpull-project')]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectPrincipalId.value]",
+        "principalId": "[reference('ai').outputs.projectPrincipalId.value]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'ai')]"
+        "ai",
+        "containerRegistry"
       ]
     },
-    {
+    "containerRegistry": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "container-registry",
@@ -131,7 +141,7 @@
         }
       }
     },
-    {
+    "ai": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "ai",
@@ -164,7 +174,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "12931053664562245867"
+              "templateHash": "6583725399437590032"
             }
           },
           "parameters": {
@@ -332,6 +342,20 @@
                 "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('name'), variables('aiProjectName'))]",
                 "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
               ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('name')), parameters('deployerPrincipalId'), '53ca6127-db72-4b80-b1b0-d745d6d5456d')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "[parameters('deployerPrincipalType')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
             }
           ],
           "outputs": {
@@ -367,7 +391,7 @@
         }
       }
     },
-    {
+    "postgresql": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "postgresql",
@@ -387,10 +411,10 @@
             "value": "[variables('tags')]"
           },
           "entraAdminObjectId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectPrincipalId.value]"
+            "value": "[reference('ai').outputs.projectPrincipalId.value]"
           },
           "entraAdminPrincipalName": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectPrincipalName.value]"
+            "value": "[reference('ai').outputs.projectPrincipalName.value]"
           },
           "entraAdminPrincipalType": {
             "value": "ServicePrincipal"
@@ -517,182 +541,14 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'ai')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "storage",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[variables('storageName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[variables('tags')]"
-          },
-          "principalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectPrincipalId.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "8673605284283025151"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            },
-            "tags": {
-              "type": "object"
-            },
-            "principalId": {
-              "type": "string",
-              "metadata": {
-                "description": "Principal ID of the hosted agent runtime identity (AI project MI). Granted Storage Blob Data Contributor."
-              }
-            },
-            "containerName": {
-              "type": "string",
-              "defaultValue": "chart-uploads"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Storage/storageAccounts",
-              "apiVersion": "2023-05-01",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "sku": {
-                "name": "Standard_LRS"
-              },
-              "kind": "StorageV2",
-              "properties": {
-                "accessTier": "Hot",
-                "minimumTlsVersion": "TLS1_2",
-                "supportsHttpsTrafficOnly": true,
-                "allowBlobPublicAccess": false,
-                "allowSharedKeyAccess": true,
-                "publicNetworkAccess": "Enabled",
-                "networkAcls": {
-                  "bypass": "AzureServices",
-                  "defaultAction": "Allow"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Storage/storageAccounts/blobServices",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}/{1}/{2}', parameters('name'), 'default', parameters('containerName'))]",
-              "properties": {
-                "publicAccess": "None"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('name'), 'default')]"
-              ]
-            },
-            {
-              "type": "Microsoft.Storage/storageAccounts/managementPolicies",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
-              "properties": {
-                "policy": {
-                  "rules": [
-                    {
-                      "name": "delete-old-charts",
-                      "enabled": true,
-                      "type": "Lifecycle",
-                      "definition": {
-                        "filters": {
-                          "blobTypes": [
-                            "blockBlob"
-                          ],
-                          "prefixMatch": [
-                            "[parameters('containerName')]"
-                          ]
-                        },
-                        "actions": {
-                          "baseBlob": {
-                            "delete": {
-                              "daysAfterModificationGreaterThan": 1
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]",
-              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), parameters('principalId'), 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
-              ]
-            }
-          ],
-          "outputs": {
-            "storageAccountName": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "containerName": {
-              "type": "string",
-              "value": "[parameters('containerName')]"
-            },
-            "blobEndpoint": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), '2023-05-01').primaryEndpoints.blob]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'ai')]"
+        "ai"
       ]
     }
-  ],
+  },
   "outputs": {
     "AZURE_CONTAINER_REGISTRY_ENDPOINT": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.registryLoginServer.value]"
+      "value": "[reference('containerRegistry').outputs.registryLoginServer.value]"
     },
     "AZURE_CONTAINER_REGISTRY_NAME": {
       "type": "string",
@@ -700,7 +556,7 @@
     },
     "POSTGRESQL_FQDN": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgresql'), '2025-04-01').outputs.fqdn.value]"
+      "value": "[reference('postgresql').outputs.fqdn.value]"
     },
     "POSTGRESQL_NAME": {
       "type": "string",
@@ -708,31 +564,31 @@
     },
     "DATABASE_URL": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgresql'), '2025-04-01').outputs.connectionString.value]"
+      "value": "[reference('postgresql').outputs.connectionString.value]"
     },
     "AI_SERVICES_ENDPOINT": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.aiServicesEndpoint.value]"
+      "value": "[reference('ai').outputs.aiServicesEndpoint.value]"
     },
     "AI_SERVICES_NAME": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.aiServicesName.value]"
+      "value": "[reference('ai').outputs.aiServicesName.value]"
     },
     "PROJECT_ENDPOINT": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectEndpoint.value]"
+      "value": "[reference('ai').outputs.projectEndpoint.value]"
+    },
+    "AZURE_AI_PROJECT_ENDPOINT": {
+      "type": "string",
+      "value": "[reference('ai').outputs.projectEndpoint.value]"
+    },
+    "AZURE_AIPROJECT_ENDPOINT": {
+      "type": "string",
+      "value": "[reference('ai').outputs.projectEndpoint.value]"
     },
     "PROJECT_NAME": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'ai'), '2025-04-01').outputs.projectName.value]"
-    },
-    "CHART_STORAGE_ACCOUNT": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountName.value]"
-    },
-    "CHART_STORAGE_CONTAINER": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.containerName.value]"
+      "value": "[reference('ai').outputs.projectName.value]"
     }
   }
 }

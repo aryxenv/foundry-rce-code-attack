@@ -59,8 +59,8 @@ resource allowAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewallR
   }
 }
 
-// Microsoft Entra admin — the AI Project's MI gets full admin so it can read all tables/views
-// (intentional: demonstrates the LLM-controlled execute_code tool inheriting MI access).
+// Microsoft Entra admin — the AI Project's MI is used by get_market_data for
+// Entra-authenticated PostgreSQL access from the hosted agent container.
 resource entraAdmin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2024-08-01' = {
   parent: postgresServer
   name: entraAdminObjectId

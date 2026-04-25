@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Rebuild + redeploy the Contoso hosted agent as a new version, route 100% traffic to it.
+    Rebuild + redeploy the Contoso secure hosted agent as a new version, route 100% traffic to it.
 
 .DESCRIPTION
     Reads config from redeploy-agent.config.json (next to this script), pulls Azure
@@ -9,11 +9,11 @@
     version_selector via the Foundry REST API to send 100% of traffic to the
     new version.
 
-    Run from the `unsecure/` folder (so `azd env` resolves to the right env)
+    Run from the `secure/` folder (so `azd env` resolves to the right env)
     or pass -ProjectRoot.
 
 .PARAMETER ProjectRoot
-    Path to the unsecure/ folder. Defaults to the parent of this script.
+    Path to the secure/ folder. Defaults to the parent of this script.
 
 .PARAMETER SkipBuild
     Reuse the most recently built image tag (read from .last_tag) instead of

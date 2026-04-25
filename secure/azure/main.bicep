@@ -28,8 +28,6 @@ var tags = {
 var envPrefix = take(replace(toLower(environmentName), '-', ''), 12)
 var acrName = '${envPrefix}${take(resourceToken, 6)}'
 var pgName = '${envPrefix}pg${take(resourceToken, 6)}'
-// Storage account names: 3-24 lowercase alphanumeric only.
-var storageName = take('${envPrefix}st${resourceToken}', 24)
 
 // --- Modules ---
 
@@ -66,17 +64,6 @@ module postgresql 'modules/postgresql.bicep' = {
   }
 }
 
-// Storage account for hosted-agent chart uploads (replaces base64 inlining).
-module storage 'modules/storage.bicep' = {
-  name: 'storage'
-  params: {
-    name: storageName
-    location: location
-    tags: tags
-    principalId: ai.outputs.projectPrincipalId
-  }
-}
-
 // --- AcrPull role for AI Project identity (hosted agent image pull) ---
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
@@ -107,6 +94,6 @@ output DATABASE_URL string = postgresql.outputs.connectionString
 output AI_SERVICES_ENDPOINT string = ai.outputs.aiServicesEndpoint
 output AI_SERVICES_NAME string = ai.outputs.aiServicesName
 output PROJECT_ENDPOINT string = ai.outputs.projectEndpoint
+output AZURE_AI_PROJECT_ENDPOINT string = ai.outputs.projectEndpoint
+output AZURE_AIPROJECT_ENDPOINT string = ai.outputs.projectEndpoint
 output PROJECT_NAME string = ai.outputs.projectName
-output CHART_STORAGE_ACCOUNT string = storage.outputs.storageAccountName
-output CHART_STORAGE_CONTAINER string = storage.outputs.containerName

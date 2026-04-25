@@ -1,6 +1,6 @@
 """
 Post-deployment setup: seeds PostgreSQL with fake Contoso data, builds +
-deploys the hosted agent (Microsoft Agent Framework) to Foundry.
+deploys the secure hosted agent (Microsoft Agent Framework) to Foundry.
 
 Reads all config from azd env — zero manual input required.
 Usage: python scripts/setup.py
@@ -216,7 +216,7 @@ def build_agent_image(acr_name: str) -> str:
     agent_dir = os.path.abspath(agent_dir)
 
     tag = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    image_ref = f"contoso-agent:{tag}"
+    image_ref = f"contoso-agent-secure:{tag}"
 
     print(f"[..] Building agent image '{image_ref}' in ACR '{acr_name}' (remote build)...")
     subprocess.run(
@@ -229,8 +229,7 @@ def build_agent_image(acr_name: str) -> str:
 
 
 def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, database_url,
-                                    credential, chart_storage_account, chart_storage_container,
-                                    max_attempts: int = 6, delay_s: int = 30):
+                                    credential, max_attempts: int = 6, delay_s: int = 30):
     """Wrap deploy_hosted_agent with retry on AcrPull RBAC propagation.
 
     `azd up` provisions ACR and the AcrPull role assignment for the AI Project MI
@@ -244,8 +243,6 @@ def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, databa
         try:
             return deploy_hosted_agent(
                 project_endpoint, acr_name, image_tag, database_url, credential,
-                chart_storage_account=chart_storage_account,
-                chart_storage_container=chart_storage_container,
             )
         except Exception as e:
             msg = str(e).lower()
@@ -260,9 +257,7 @@ def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, databa
 
 
 def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
-                         database_url: str, credential,
-                         chart_storage_account: str | None = None,
-                         chart_storage_container: str | None = None):
+                         database_url: str, credential):
     """Deploy the hosted agent to Foundry via HostedAgentDefinition."""
     from azure.ai.projects import AIProjectClient
     from azure.ai.projects.models import HostedAgentDefinition, ProtocolVersionRecord, AgentProtocol
@@ -273,20 +268,15 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
         allow_preview=True,
     )
 
-    image = f"{acr_name}.azurecr.io/contoso-agent:{image_tag}"
+    image = f"{acr_name}.azurecr.io/contoso-agent-secure:{image_tag}"
 
     env_vars = {
         "PROJECT_ENDPOINT": project_endpoint,
         "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
         "DATABASE_URL": database_url,
     }
-    if chart_storage_account:
-        env_vars["CHART_STORAGE_ACCOUNT"] = chart_storage_account
-    if chart_storage_container:
-        env_vars["CHART_STORAGE_CONTAINER"] = chart_storage_container
-
     agent = client.agents.create_version(
-        agent_name="contoso-market-research",
+        agent_name="contoso-market-research-secure",
         definition=HostedAgentDefinition(
             container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="v1")],
             cpu="1",
@@ -393,10 +383,14 @@ def generate_env_file(project_endpoint: str, database_url: str):
 
 
 def main():
-    print("Contoso Market Research Agent - Post-Deployment Setup\n")
+    print("Contoso Market Research Secure Agent - Post-Deployment Setup\n")
 
     env = get_azd_env()
-    project_endpoint = env.get("PROJECT_ENDPOINT")
+    project_endpoint = (
+        env.get("PROJECT_ENDPOINT")
+        or env.get("AZURE_AI_PROJECT_ENDPOINT")
+        or env.get("AZURE_AIPROJECT_ENDPOINT")
+    )
     database_url = env.get("DATABASE_URL")
     acr_name = env.get("AZURE_CONTAINER_REGISTRY_NAME")
     fqdn = env.get("POSTGRESQL_FQDN")
@@ -406,9 +400,6 @@ def main():
     project_name = env.get("PROJECT_NAME")
     if not project_name and project_endpoint:
         project_name = project_endpoint.rstrip("/").rsplit("/", 1)[-1]
-
-    chart_storage_account = env.get("CHART_STORAGE_ACCOUNT")
-    chart_storage_container = env.get("CHART_STORAGE_CONTAINER")
 
     if not all([project_endpoint, database_url, acr_name, fqdn, ai_services_name, project_name]):
         print("[ERR] Missing deployment outputs. Run 'azd up' first.")
@@ -448,8 +439,6 @@ def main():
         # Retry create_version against the AcrPull RBAC propagation race.
         agent_name, agent_version = deploy_hosted_agent_with_retry(
             project_endpoint, acr_name, image_tag, database_url, credential,
-            chart_storage_account=chart_storage_account,
-            chart_storage_container=chart_storage_container,
         )
 
         # create_version only registers the spec — start the deployment so it actually runs,
@@ -472,7 +461,7 @@ def main():
     except Exception as e:
         print(f"\n[ERR] Automated agent deployment failed: {e}")
         print(f"\nDeploy the agent manually:")
-        print(f"   az acr build --registry {acr_name} --image contoso-agent:manual src/agent")
+        print(f"   az acr build --registry {acr_name} --image contoso-agent-secure:manual src/agent")
         print(f"   Then create the agent version in the Foundry portal.")
         sys.exit(1)
 

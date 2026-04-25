@@ -1,6 +1,6 @@
-name: contoso-market-research
+name: contoso-market-research-secure
 metadata:
-  template: contoso-market-research
+  template: contoso-market-research-secure
 
 infra:
   provider: bicep
