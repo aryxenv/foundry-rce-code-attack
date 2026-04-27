@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -20,8 +21,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from aiohttp import ClientPayloadError
 from agent_framework import AgentResponseUpdate, Content
-from azure.core.exceptions import AzureError
+from azure.core.exceptions import AzureError, IncompleteReadError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSettings, generate_blob_sas
 from azure.ai.agentserver.agentframework.models.agent_framework_output_non_streaming_converter import (
@@ -44,6 +46,21 @@ _STORAGE_ACCOUNT = os.getenv("CHART_STORAGE_ACCOUNT")
 _STORAGE_CONTAINER = os.getenv("CHART_STORAGE_CONTAINER", "chart-uploads")
 _SAS_TTL = timedelta(hours=1)
 _credential: DefaultAzureCredential | None = None
+
+# Stream-completion errors raised by the upstream Foundry /responses SSE when
+# the Code Interpreter sandbox dies mid-run (e.g. attacker-supplied long-running
+# code). We convert these into a clean failover message so the hosted-agent UI
+# does not show a bare "network error" and wedge the chat session.
+_STREAM_ABORT_ERRORS: tuple[type[BaseException], ...] = (
+    ClientPayloadError,
+    IncompleteReadError,
+    OSError,
+)
+
+
+def _log(msg: str) -> None:
+    """Unbuffered stderr logging, matching the [TOOL] convention used in tools.py."""
+    print(f"[TOOL] {msg}", file=sys.stderr, flush=True)
 
 
 def _hosted_file_url(file_id: str) -> str | None:
@@ -247,29 +264,82 @@ def _apply_non_streaming_patch() -> None:
     AgentFrameworkOutputNonStreamingConverter._append_content_item = append_content_item
 
 
+def _is_code_interpreter_call(content) -> bool:
+    """Best-effort detection of a Code Interpreter tool-call update."""
+    if getattr(content, "type", None) != "function_call":
+        return False
+    for attr in ("name", "tool_name", "function_name"):
+        value = getattr(content, attr, None)
+        if isinstance(value, str) and "code_interpreter" in value.lower():
+            return True
+    return False
+
+
 async def _read_updates_with_hosted_files(
     self: AgentFrameworkOutputStreamingConverter,
     updates: AsyncIterable[AgentResponseUpdate],
 ) -> AsyncIterable[tuple[Content, str]]:
-    async for update in updates:
-        if not update.contents:
-            continue
+    accepted_types = {"function_call", "user_input_request", "function_result", "error"}
+    stream_started = time.monotonic()
+    code_interp_started_at: float | None = None
+    last_author = ""
 
-        author_name = getattr(update, "author_name", "") or ""
-        accepted_types = {"function_call", "user_input_request", "function_result", "error"}
-        for content in update.contents:
-            if content.type == "hosted_file":
-                if content.file_id:
-                    non_streaming_logger.info("Surfacing Code Interpreter hosted file: %s", content.file_id)
-                    yield (_hosted_file_text(content.file_id), author_name)
+    def _ci_elapsed() -> float:
+        start = code_interp_started_at if code_interp_started_at is not None else stream_started
+        return time.monotonic() - start
+
+    try:
+        async for update in updates:
+            if not update.contents:
                 continue
-            if content.type == "text":
-                text_value = _sanitize_model_text(content.text or "")
-                if text_value:
-                    yield (Content.from_text(text_value), author_name)
-                continue
-            if content.type in accepted_types:
-                yield (content, author_name)
+
+            author_name = getattr(update, "author_name", "") or ""
+            last_author = author_name or last_author
+            for content in update.contents:
+                if code_interp_started_at is None and _is_code_interpreter_call(content):
+                    code_interp_started_at = time.monotonic()
+                    _log("code_interpreter ENTRY")
+
+                if content.type == "hosted_file":
+                    if content.file_id:
+                        non_streaming_logger.info("Surfacing Code Interpreter hosted file: %s", content.file_id)
+                        _log(
+                            f"code_interpreter EXIT-ok file_id={content.file_id} "
+                            f"elapsed={_ci_elapsed():.2f}s"
+                        )
+                        yield (_hosted_file_text(content.file_id), author_name)
+                    continue
+                if content.type == "text":
+                    text_value = _sanitize_model_text(content.text or "")
+                    if text_value:
+                        yield (Content.from_text(text_value), author_name)
+                    continue
+                if content.type in accepted_types:
+                    yield (content, author_name)
+    except _STREAM_ABORT_ERRORS as exc:
+        # Upstream Foundry /responses SSE dropped mid-stream — typically the
+        # Code Interpreter sandbox died on attacker-supplied long-running code.
+        # Surface a clean failover message instead of letting aiohttp/azure-core
+        # raise straight into agentserver (which renders as bare "network error"
+        # and wedges the chat).
+        _log(
+            f"code_interpreter EXIT-stream-error {type(exc).__name__}: {exc} "
+            f"elapsed={_ci_elapsed():.2f}s"
+        )
+        non_streaming_logger.warning(
+            "Foundry response stream aborted mid-flight; surfacing failover message: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        yield (
+            Content.from_text(
+                "\n\nNote: The chart step was interrupted before completion. "
+                "The summary above is based on sanitized data; please retry "
+                "the chart request."
+            ),
+            last_author,
+        )
+        return
 
 
 def _apply_streaming_patch() -> None:

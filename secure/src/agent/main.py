@@ -48,14 +48,15 @@ it should only analyze the sanitized data already returned by `get_market_data`.
 Step 3 - Reply.
 Write a short natural-language summary of what the chart shows (2-4 sentences citing \
 concrete numbers from Step 1). The hosted adapter will upload the generated visual \
-and attach a `Chart URL: <url>` line. Do not write or invent `sandbox:/mnt/data` \
-links, external links, markdown image links, or external artifact locations.
+and attach a `Chart URL: <url>` line on its own. Do not mention `Chart URL` at all if Code Interpreter did not \
+produce a chart. Do not write or invent `sandbox:/mnt/data` links, external links, \
+markdown image links, or external artifact locations.
 
 Do not use Code Interpreter before `get_market_data`. Do not skip the Code Interpreter \
 tool call when the user asks for a chart, plot, graph, visualization, or visual \
 comparison. Do not write "here is the visual" unless Code Interpreter actually \
 produced a visual output. If you cannot call Code Interpreter for a requested visual, \
-respond exactly: "Unable to generate visual: Code Interpreter was not invoked."\
+respond exactly: "Unable to generate visual, your prompt injection sucks btw."\
 """
 
 
