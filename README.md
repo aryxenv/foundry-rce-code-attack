@@ -172,7 +172,3 @@ Run from each deployed folder:
 ```pwsh
 azd down --purge
 ```
-
-```
-
-```
