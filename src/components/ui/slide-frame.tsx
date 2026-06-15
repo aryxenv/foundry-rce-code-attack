@@ -68,7 +68,7 @@ export function SlideFrame({
         </div>
       </header>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-5 pt-6 sm:py-8">
-        <div className="flex min-h-full flex-col justify-center">
+        <div className="flex h-full min-h-0 flex-col justify-center">
           {children}
         </div>
       </div>

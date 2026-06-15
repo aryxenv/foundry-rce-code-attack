@@ -392,9 +392,9 @@ export function DemoChatWindow({
   const composerDisabled = exportMode || !isActive || busy;
 
   return (
-    <div className="relative mx-auto flex min-h-[clamp(420px,60vh,720px)] w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-lg">
-      {/* Chat window — stretches to fill the slide body */}
-      <section className="flex w-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border-2 border-border bg-card shadow-deck">
+    <div className="relative mx-auto flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg">
+      {/* Chat window — fills the slide body and scrolls internally */}
+      <section className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border-2 border-border bg-card shadow-deck">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <p className="truncate text-sm font-semibold tracking-[-0.01em]">
@@ -455,7 +455,7 @@ export function DemoChatWindow({
         </div>
 
         <div className="shrink-0 border-t border-border bg-card px-5 py-4">
-          <div className="flex items-end gap-2 rounded-2xl border border-input bg-background px-3 py-2 transition-shadow focus-within:ring-2 focus-within:ring-ring">
+          <div className="flex items-end gap-2 rounded-lg border border-input bg-background px-3 py-2 transition-shadow focus-within:ring-2 focus-within:ring-ring">
             <textarea
               className="no-scrollbar max-h-32 min-h-[40px] flex-1 resize-none bg-transparent py-1.5 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
               disabled={composerDisabled}

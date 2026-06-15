@@ -5,7 +5,7 @@ import type { DemoScenario } from "@/lib/api";
 
 const SCENARIO: DemoScenario = "unsecure-regular";
 const DEFAULT_PROMPT =
-  "Pull Q3 2025 sales by region and plot revenue vs profit margin as a grouped bar chart, sorted by margin descending. Return a short business summary and put the Chart URL on a new line.";
+  "Pull Q3 2025 sales by region and plot revenue vs profit margin (profit/revenue) as a grouped bar chart, sorted by margin descending.";
 
 const infoCards = [
   {
