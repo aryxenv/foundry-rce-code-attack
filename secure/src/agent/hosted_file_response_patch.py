@@ -1,11 +1,12 @@
 """
-Compatibility patch for Azure AI Agent Server's Agent Framework adapter.
+Compatibility patch for Agent Framework Foundry hosting responses.
 
-azure-ai-agentserver-agentframework 1.0.0b17 invokes Foundry Code Interpreter
-successfully, but its /responses output converters drop Agent Framework
-`hosted_file` content. The hosted-agent UI also does not expose file_path
-annotations or inline data URLs, so this patch downloads Code Interpreter image
-files, uploads them to private blob storage, and returns a short-lived Chart URL.
+The refreshed `agent-framework-foundry-hosting` ResponsesHostServer currently
+logs unsupported `hosted_file` content from Foundry Code Interpreter instead
+of surfacing it to the hosted-agent UI. This patch keeps the secure artifact
+delivery path: download generated image files with managed identity, upload
+them to private blob storage, and emit a short-lived Chart URL as assistant
+text.
 """
 
 from __future__ import annotations
@@ -16,23 +17,15 @@ import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import AsyncIterable
+from typing import AsyncIterator, Awaitable, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from aiohttp import ClientPayloadError
-from agent_framework import AgentResponseUpdate, Content
-from azure.core.exceptions import AzureError, IncompleteReadError
+from agent_framework import Content
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSettings, generate_blob_sas
-from azure.ai.agentserver.agentframework.models.agent_framework_output_non_streaming_converter import (
-    AgentFrameworkOutputNonStreamingConverter,
-    logger as non_streaming_logger,
-)
-from azure.ai.agentserver.agentframework.models.agent_framework_output_streaming_converter import (
-    AgentFrameworkOutputStreamingConverter,
-)
 
 _PATCH_MARKER = "_contoso_hosted_file_response_patch"
 _FOUNDRY_FILES_API_VERSION = "2025-05-15-preview"
@@ -47,16 +40,6 @@ _STORAGE_CONTAINER = os.getenv("CHART_STORAGE_CONTAINER", "chart-uploads")
 _SAS_TTL = timedelta(hours=1)
 _credential: DefaultAzureCredential | None = None
 
-# Stream-completion errors raised by the upstream Foundry /responses SSE when
-# the Code Interpreter sandbox dies mid-run (e.g. attacker-supplied long-running
-# code). We convert these into a clean failover message so the hosted-agent UI
-# does not show a bare "network error" and wedge the chat session.
-_STREAM_ABORT_ERRORS: tuple[type[BaseException], ...] = (
-    ClientPayloadError,
-    IncompleteReadError,
-    OSError,
-)
-
 
 def _log(msg: str) -> None:
     """Unbuffered stderr logging, matching the [TOOL] convention used in tools.py."""
@@ -64,7 +47,12 @@ def _log(msg: str) -> None:
 
 
 def _hosted_file_url(file_id: str) -> str | None:
-    project_endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+    project_endpoint = (
+        os.getenv("FOUNDRY_PROJECT_ENDPOINT")
+        or os.getenv("PROJECT_ENDPOINT")
+        or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+        or os.getenv("AZURE_AIPROJECT_ENDPOINT")
+    )
     if not project_endpoint:
         return None
     safe_file_id = quote(file_id, safe="")
@@ -119,31 +107,29 @@ def _download_hosted_file(file_id: str) -> tuple[bytes, str] | None:
                 break
         except HTTPError as exc:
             if exc.code == 404 and attempt < _DOWNLOAD_ATTEMPTS:
-                non_streaming_logger.info(
-                    "Code Interpreter hosted file %s is not available yet; retrying download (%d/%d)",
-                    file_id,
-                    attempt,
-                    _DOWNLOAD_ATTEMPTS,
+                _log(
+                    f"Code Interpreter hosted file {file_id} is not available yet; "
+                    f"retrying download ({attempt}/{_DOWNLOAD_ATTEMPTS})"
                 )
                 time.sleep(_DOWNLOAD_RETRY_DELAY_SECONDS)
                 continue
-            non_streaming_logger.warning("Failed to download Code Interpreter hosted file %s: %s", file_id, exc)
+            _log(f"Failed to download Code Interpreter hosted file {file_id}: {exc}")
             return None
         except (OSError, URLError) as exc:
-            non_streaming_logger.warning("Failed to download Code Interpreter hosted file %s: %s", file_id, exc)
+            _log(f"Failed to download Code Interpreter hosted file {file_id}: {exc}")
             return None
 
     if data is None:
-        non_streaming_logger.warning("Code Interpreter hosted file %s was not available after retries", file_id)
+        _log(f"Code Interpreter hosted file {file_id} was not available after retries")
         return None
 
     if len(data) > _MAX_HOSTED_FILE_BYTES:
-        non_streaming_logger.warning("Code Interpreter hosted file %s is too large to publish", file_id)
+        _log(f"Code Interpreter hosted file {file_id} is too large to publish")
         return None
 
     media_type = _detect_image_media_type(data, content_type)
     if not media_type:
-        non_streaming_logger.warning("Code Interpreter hosted file %s is not an image; content_type=%s", file_id, content_type)
+        _log(f"Code Interpreter hosted file {file_id} is not an image; content_type={content_type}")
         return None
 
     return data, media_type
@@ -151,7 +137,7 @@ def _download_hosted_file(file_id: str) -> tuple[bytes, str] | None:
 
 def _upload_hosted_image(file_id: str, data: bytes, media_type: str) -> str | None:
     if not _STORAGE_ACCOUNT:
-        non_streaming_logger.warning("CHART_STORAGE_ACCOUNT is not configured; cannot publish Code Interpreter file %s", file_id)
+        _log(f"CHART_STORAGE_ACCOUNT is not configured; cannot publish Code Interpreter file {file_id}")
         return None
 
     try:
@@ -184,7 +170,7 @@ def _upload_hosted_image(file_id: str, data: bytes, media_type: str) -> str | No
         )
         return f"{account_url}/{_STORAGE_CONTAINER}/{blob_name}?{sas}"
     except (AzureError, OSError, ValueError) as exc:
-        non_streaming_logger.warning("Failed to publish Code Interpreter hosted file %s to blob storage: %s", file_id, exc)
+        _log(f"Failed to publish Code Interpreter hosted file {file_id} to blob storage: {exc}")
         return None
 
 
@@ -196,18 +182,15 @@ def _hosted_file_chart_url(file_id: str) -> str | None:
     return _upload_hosted_image(file_id, data, media_type)
 
 
-def _hosted_file_text(file_id: str) -> Content:
+def _hosted_file_text(file_id: str) -> str:
     chart_url = _hosted_file_chart_url(file_id)
     if chart_url:
-        return Content.from_text(
-            f"\n\nChart URL: {chart_url}\n",
-        )
+        return f"\n\nChart URL: {chart_url}\n"
 
-    text = (
+    return (
         "\n\nGenerated visual file id: "
         f"`{file_id}`. The generated file could not be attached before the response completed.\n\n"
     )
-    return Content.from_text(text)
 
 
 def _sanitize_model_text(text: str) -> str:
@@ -215,142 +198,34 @@ def _sanitize_model_text(text: str) -> str:
     return _SANDBOX_URI_PATTERN.sub("[generated visual attached]", without_markdown_links)
 
 
-def _apply_non_streaming_patch() -> None:
-    original_append_content = AgentFrameworkOutputNonStreamingConverter._append_content_item
-
-    def append_text_content(self: AgentFrameworkOutputNonStreamingConverter, content: Content, sink: list[dict]) -> None:
-        text_value = _sanitize_model_text(content.text or "")
-        if not text_value:
-            return
-        item_id = self._context.id_generator.generate_message_id()  # pylint: disable=protected-access
-        sink.append(
-            {
-                "id": item_id,
-                "type": "message",
-                "status": "completed",
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "output_text",
-                        "text": text_value,
-                        "annotations": [],
-                        "logprobs": [],
-                    }
-                ],
-            }
-        )
-        non_streaming_logger.debug("    added message item id=%s text_len=%d", item_id, len(text_value))
-
-    def append_hosted_file_content(
-        self: AgentFrameworkOutputNonStreamingConverter,
-        content: Content,
-        sink: list[dict],
-    ) -> None:
-        if not content.file_id:
-            non_streaming_logger.warning("Hosted file content is missing file_id; cannot surface artifact")
-            return
-        if any(content.file_id in str(item) for item in sink):
-            return
-        non_streaming_logger.info("Surfacing Code Interpreter hosted file: %s", content.file_id)
-        append_text_content(self, _hosted_file_text(content.file_id), sink)
-
-    def append_content_item(self: AgentFrameworkOutputNonStreamingConverter, content: Content, sink: list[dict]) -> None:
-        if content.type == "hosted_file":
-            append_hosted_file_content(self, content, sink)
-            return
-        original_append_content(self, content, sink)
-
-    AgentFrameworkOutputNonStreamingConverter._append_text_content = append_text_content
-    AgentFrameworkOutputNonStreamingConverter._append_content_item = append_content_item
-
-
-def _is_code_interpreter_call(content) -> bool:
-    """Best-effort detection of a Code Interpreter tool-call update."""
-    if getattr(content, "type", None) != "function_call":
-        return False
-    for attr in ("name", "tool_name", "function_name"):
-        value = getattr(content, attr, None)
-        if isinstance(value, str) and "code_interpreter" in value.lower():
-            return True
-    return False
-
-
-async def _read_updates_with_hosted_files(
-    self: AgentFrameworkOutputStreamingConverter,
-    updates: AsyncIterable[AgentResponseUpdate],
-) -> AsyncIterable[tuple[Content, str]]:
-    accepted_types = {"function_call", "user_input_request", "function_result", "error"}
-    stream_started = time.monotonic()
-    code_interp_started_at: float | None = None
-    last_author = ""
-
-    def _ci_elapsed() -> float:
-        start = code_interp_started_at if code_interp_started_at is not None else stream_started
-        return time.monotonic() - start
-
-    try:
-        async for update in updates:
-            if not update.contents:
-                continue
-
-            author_name = getattr(update, "author_name", "") or ""
-            last_author = author_name or last_author
-            for content in update.contents:
-                if code_interp_started_at is None and _is_code_interpreter_call(content):
-                    code_interp_started_at = time.monotonic()
-                    _log("code_interpreter ENTRY")
-
-                if content.type == "hosted_file":
-                    if content.file_id:
-                        non_streaming_logger.info("Surfacing Code Interpreter hosted file: %s", content.file_id)
-                        _log(
-                            f"code_interpreter EXIT-ok file_id={content.file_id} "
-                            f"elapsed={_ci_elapsed():.2f}s"
-                        )
-                        yield (_hosted_file_text(content.file_id), author_name)
-                    continue
-                if content.type == "text":
-                    text_value = _sanitize_model_text(content.text or "")
-                    if text_value:
-                        yield (Content.from_text(text_value), author_name)
-                    continue
-                if content.type in accepted_types:
-                    yield (content, author_name)
-    except _STREAM_ABORT_ERRORS as exc:
-        # Upstream Foundry /responses SSE dropped mid-stream — typically the
-        # Code Interpreter sandbox died on attacker-supplied long-running code.
-        # Surface a clean failover message instead of letting aiohttp/azure-core
-        # raise straight into agentserver (which renders as bare "network error"
-        # and wedges the chat).
-        _log(
-            f"code_interpreter EXIT-stream-error {type(exc).__name__}: {exc} "
-            f"elapsed={_ci_elapsed():.2f}s"
-        )
-        non_streaming_logger.warning(
-            "Foundry response stream aborted mid-flight; surfacing failover message: %s: %s",
-            type(exc).__name__,
-            exc,
-        )
-        yield (
-            Content.from_text(
-                "\n\nNote: The chart step was interrupted before completion. "
-                "The summary above is based on sanitized data; please retry "
-                "the chart request."
-            ),
-            last_author,
-        )
-        return
-
-
-def _apply_streaming_patch() -> None:
-    AgentFrameworkOutputStreamingConverter._read_updates = _read_updates_with_hosted_files
-
-
 def apply_hosted_file_response_patch() -> None:
     """Preserve Foundry Code Interpreter generated files in hosted /responses output."""
-    if getattr(AgentFrameworkOutputStreamingConverter, _PATCH_MARKER, False):
+    import agent_framework_foundry_hosting._responses as responses  # noqa: PLC0415
+
+    if getattr(responses, _PATCH_MARKER, False):
         return
 
-    _apply_non_streaming_patch()
-    _apply_streaming_patch()
-    setattr(AgentFrameworkOutputStreamingConverter, _PATCH_MARKER, True)
+    original_to_outputs: Callable[..., AsyncIterator[object] | Awaitable[AsyncIterator[object]]] = responses._to_outputs
+
+    async def to_outputs_with_hosted_files(stream, content: Content, *, approval_storage=None) -> AsyncIterator[object]:
+        if content.type == "hosted_file":
+            if not content.file_id:
+                _log("Hosted file content is missing file_id; cannot surface artifact")
+                return
+            _log(f"Surfacing Code Interpreter hosted file: {content.file_id}")
+            async for event in stream.aoutput_item_message(_hosted_file_text(content.file_id)):
+                yield event
+            return
+
+        if content.type == "text" and content.text is not None:
+            text_value = _sanitize_model_text(content.text)
+            if not text_value:
+                return
+            if text_value != content.text:
+                content = Content.from_text(text_value)
+
+        async for event in original_to_outputs(stream, content, approval_storage=approval_storage):
+            yield event
+
+    responses._to_outputs = to_outputs_with_hosted_files
+    setattr(responses, _PATCH_MARKER, True)

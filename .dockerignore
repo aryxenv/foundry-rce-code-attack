@@ -1,0 +1,15 @@
+.git/
+.azure/
+.venv/
+node_modules/
+dist/
+exports/
+.env
+.env.*
+!*.example
+server/.env
+server/.venv/
+server/__pycache__/
+server/.pytest_cache/
+**/__pycache__/
+**/*.pyc

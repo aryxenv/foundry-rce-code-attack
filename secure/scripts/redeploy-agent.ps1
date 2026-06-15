@@ -9,8 +9,8 @@
     version_selector via the Foundry REST API to send 100% of traffic to the
     new version.
 
-    Run from the `secure/` folder (so `azd env` resolves to the right env)
-    or pass -ProjectRoot.
+    Run from the `secure/` folder. The consolidated root azd environment is
+    used by default; pass -AzdEnvRoot only for advanced scenarios.
 
 .PARAMETER ProjectRoot
     Path to the secure/ folder. Defaults to the parent of this script.
@@ -21,6 +21,10 @@
 
 .PARAMETER Tag
     Override the image tag (default: timestamp yyyyMMdd-HHmmss).
+
+.PARAMETER AzdEnvRoot
+    Optional folder whose azd environment should be read. Use the repository
+    root when this agent was provisioned by the consolidated root deployment.
 
 .EXAMPLE
     ./scripts/redeploy-agent.ps1
@@ -33,7 +37,8 @@
 param(
     [string]$ProjectRoot = (Split-Path -Parent (Split-Path -Parent $PSCommandPath)),
     [switch]$SkipBuild,
-    [string]$Tag
+    [string]$Tag,
+    [string]$AzdEnvRoot = $env:AZD_ENV_ROOT
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,9 +51,16 @@ function Write-OK($msg)   { Write-Host "    $msg" -ForegroundColor Green }
 function Write-Warn2($msg){ Write-Host "    $msg" -ForegroundColor Yellow }
 
 function Get-AzdValue([string]$key) {
-    $val = (azd env get-value $key 2>$null) -replace '"', ''
-    if (-not $val) { throw "azd env value '$key' is empty. Run 'azd up' first." }
-    return $val
+    $root = if (-not [string]::IsNullOrWhiteSpace($AzdEnvRoot)) { $AzdEnvRoot } else { (Resolve-Path (Join-Path $ProjectRoot "..")).Path }
+    Push-Location $root
+    try {
+        $val = (azd env get-value $key 2>$null) -replace '"', ''
+        if (-not $val) { throw "azd env value '$key' is empty. Run 'azd up' first." }
+        return $val
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 # ---------------------------------------------------------------------------

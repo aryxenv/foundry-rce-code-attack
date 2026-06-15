@@ -27,12 +27,13 @@ The point is not that "LLMs are bad." The point is that your architecture may cr
 
 Prereqs: Azure CLI, Azure Developer CLI (`azd`), `uv`, and access to Azure AI Foundry.
 
-Deploy the vulnerable version:
+Deploy the consolidated demo. One root `azd up` provisions a single resource
+group with the web deck, API, shared PostgreSQL, AI Services project, chart
+storage, ACR, and both hosted agents.
 
 ```pwsh
 az login
 azd auth login
-cd .\unsecure
 azd up
 ```
 
@@ -156,18 +157,11 @@ Return a short business summary based on the sanitized Q3 region totals, then pu
 
 Expected behavior: `unsecure` may produce a chart containing fake PII because `execute_code` runs inside the container that has database access.
 
-Now deploy the secure version:
-
-```pwsh
-cd ..\secure
-azd up
-```
-
 Open the hosted agent `contoso-market-research-secure` and try the same prompts. Expected behavior: chart code runs in Foundry Code Interpreter, which does not have the agent container's database connection, so it should only work with sanitized data returned by `get_market_data`.
 
 ## Cleanup
 
-Run from each deployed folder:
+Run from the repository root:
 
 ```pwsh
 azd down --purge

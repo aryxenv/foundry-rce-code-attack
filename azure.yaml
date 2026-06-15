@@ -1,0 +1,44 @@
+name: webslides
+services:
+  web:
+    project: .
+    language: docker
+    host: containerapp
+    uses:
+      - api
+    docker:
+      path: web/Dockerfile
+      remoteBuild: true
+  api:
+    project: .
+    language: docker
+    host: containerapp
+    docker:
+      path: server/Dockerfile
+      remoteBuild: true
+infra:
+  provider: bicep
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./scripts/azd/prepare-env.ps1
+      interactive: false
+    posix:
+      shell: sh
+      run: ./scripts/azd/prepare-env.sh
+      interactive: false
+  predeploy:
+    windows:
+      shell: pwsh
+      run: ./scripts/azd/wait-acrpull.ps1
+      interactive: false
+    posix:
+      shell: sh
+      run: ./scripts/azd/wait-acrpull.sh
+      interactive: false
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./scripts/azd/postprovision.ps1
+      interactive: false

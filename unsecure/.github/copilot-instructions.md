@@ -5,7 +5,7 @@
 This repository contains deliberately vulnerable code for demonstrating AI agent security risks at conferences. All data is fake and fictional.
 
 ## Project Overview
-A Contoso Market Research Agent (Microsoft Agent Framework, hosted in Azure AI Foundry) implemented as a **single ChatAgent** with two tools registered. The two-stage flow is enforced via the system prompt:
+A Contoso Market Research Agent (Microsoft Agent Framework, hosted in Azure AI Foundry) implemented as a **single Agent** with two tools registered. The two-stage flow is enforced via the system prompt:
 - **`get_market_data`** tool: sanitized views + PII scrubbing. The system prompt instructs the model to call this first.
 - **`execute_code`** tool (DELIBERATELY VULNERABLE): runs Python locally inside the hosted container. Called second to render charts from the retrieved data.
 
@@ -19,11 +19,11 @@ The attack blends into the normal flow (the data-retrieval call looks clean, the
 
 ## Key Files
 - `src/agent/tools.py` — Tool implementations (get_market_data is safe, execute_code is vulnerable)
-- `src/agent/main.py` — Single ChatAgent: AzureAIClient + as_agent(tools=[get_market_data, execute_code]) + from_agent_framework
-- `azure/` — Bicep infrastructure (PostgreSQL, AI Services)
+- `src/agent/main.py` — Single Agent: FoundryChatClient + Agent(tools=[get_market_data, execute_code]) + ResponsesHostServer
+- Root `infra/` — consolidated Bicep infrastructure for PostgreSQL, AI Services, ACR, Storage, web, API, and both hosted agents.
 - `scripts/setup.py` — Post-provisioning: seeds DB, deploys hosted agent, grants runtime RBAC
 
 ## Conventions
 - All fake PII uses @contoso.com emails, SSNs starting with 9xx
-- Infrastructure uses SecurityControl: Ignore tags
-- Agent uses Microsoft Agent Framework (`agent_framework_azure_ai.AzureAIClient`)
+- Infrastructure changes belong in the root `infra/` folder and use `SecurityControl: Ignore` tags where required.
+- Agent uses Microsoft Agent Framework (`agent_framework.foundry.FoundryChatClient`)

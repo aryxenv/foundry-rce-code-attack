@@ -23,8 +23,10 @@ AZ = shutil.which("az") or "az"
 
 def get_azd_env() -> dict[str, str]:
     """Pull all deployment outputs from azd env."""
+    azd_env_root = os.environ.get("AZD_ENV_ROOT") or None
     result = subprocess.run(
         ["azd", "env", "get-values"],
+        cwd=azd_env_root,
         capture_output=True,
         text=True,
         check=True,
@@ -288,7 +290,10 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     image = f"{acr_name}.azurecr.io/contoso-agent-secure:{image_tag}"
 
     env_vars = {
+        "FOUNDRY_PROJECT_ENDPOINT": project_endpoint,
         "PROJECT_ENDPOINT": project_endpoint,
+        "FOUNDRY_MODEL": "gpt-4o-mini",
+        "AZURE_AI_MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
         "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
         "DATABASE_URL": database_url,
     }
@@ -300,7 +305,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     agent = client.agents.create_version(
         agent_name="contoso-market-research-secure",
         definition=HostedAgentDefinition(
-            container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="v1")],
+            container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="1.0.0")],
             cpu="1",
             memory="2Gi",
             image=image,
@@ -402,7 +407,10 @@ def generate_env_file(
     env_path = os.path.join(os.path.abspath(agent_dir), ".env")
 
     with open(env_path, "w") as f:
+        f.write(f"FOUNDRY_PROJECT_ENDPOINT={project_endpoint}\n")
         f.write(f"PROJECT_ENDPOINT={project_endpoint}\n")
+        f.write("FOUNDRY_MODEL=gpt-4o-mini\n")
+        f.write("AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
         f.write("MODEL_DEPLOYMENT_NAME=gpt-4o-mini\n")
         f.write(f"DATABASE_URL={database_url}\n")
         if chart_storage_account:

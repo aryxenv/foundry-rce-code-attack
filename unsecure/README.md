@@ -28,13 +28,15 @@ Demonstrates how a code interpreter co-located in the same container as an AI ag
 
 ## Setup
 
+From the repository root:
+
 ```bash
 azd up
 ```
 
 That's it. `azd up` will:
 
-1. Provision all Azure resources (PostgreSQL, AI Services, ACR, Storage)
+1. Provision one consolidated resource group with the web deck, API, PostgreSQL, AI Services, ACR, Storage, and both hosted agents.
 2. Automatically run post-provision setup:
    - Open a PG firewall rule for your current public IP (named `azd-deployer-<ip>`)
    - Seed PostgreSQL with fake Contoso data (customers, sales, employee compensation)
@@ -44,11 +46,11 @@ That's it. `azd up` will:
 
 If `azd up` halts during postprovision, the hook now exits non-zero with the
 specific error (PG firewall, AAD-admin propagation, AcrPull RBAC race, etc.) —
-re-run with `azd hooks run postprovision`.
+re-run from the repository root with `azd hooks run postprovision`.
 
 ## The Agent
 
-The **Contoso Market Research Agent** is a **single hosted ChatAgent** with two tools registered. The two-stage flow (retrieve sanitized data first, then visualize) is enforced by the system prompt rather than by workflow topology.
+The **Contoso Market Research Agent** is a **single hosted Microsoft Agent Framework `Agent`** with two tools registered. It uses `FoundryChatClient` and `ResponsesHostServer` for the Foundry Responses protocol. The two-stage flow (retrieve sanitized data first, then visualize) is enforced by the system prompt rather than by workflow topology.
 
 **Tools:**
 

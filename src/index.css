@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 35 52% 93%;
+    --foreground: 30 10% 20%;
+    --card: 40 80% 96%;
+    --card-foreground: 30 10% 20%;
+    --popover: 40 80% 96%;
+    --popover-foreground: 30 10% 20%;
+    --primary: 35 80% 32%;
+    --primary-foreground: 40 100% 98%;
+    --secondary: 36 42% 88%;
+    --secondary-foreground: 30 10% 25%;
+    --muted: 35 34% 86%;
+    --muted-foreground: 30 8% 38%;
+    --accent: 30 70% 32%;
+    --accent-foreground: 40 100% 98%;
+    --destructive: 10 85% 40%;
+    --destructive-foreground: 40 100% 98%;
+    --success: 113 28% 32%;
+    --success-foreground: 40 100% 98%;
+    --border: 34 24% 74%;
+    --input: 34 24% 74%;
+    --ring: 35 80% 32%;
+    --radius: 0.375rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-screen;
+  }
+
+  body {
+    @apply m-0 bg-background font-sans text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  /* Hide scrollbars globally while keeping scroll functionality.
+     scrollbar-width: none covers Firefox and Chromium 121+; the webkit rule
+     covers Safari and older Chromium. Content stays fully scrollable. */
+  * {
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+@page {
+  size: 13.333333in 7.5in;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    width: 13.333333in;
+    min-height: 7.5in;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  #app-loader {
+    display: none !important;
+  }
+
+  .pdf-export-page {
+    box-sizing: border-box;
+    width: 13.333333in;
+    height: 7.5in;
+    min-height: 7.5in;
+    max-height: 7.5in;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .pdf-export-slide-canvas {
+    width: 1920px;
+    height: 1080px;
+    transform: scale(0.6666666667);
+    transform-origin: top left;
+  }
+
+  .pdf-export-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+.attack-connector {
+  position: relative;
+  overflow: hidden;
+  background-color: hsl(var(--border));
+}
+
+.attack-connector::after {
+  content: "";
+  position: absolute;
+  inset: -40% 0;
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--primary) / 0) 0%,
+    hsl(var(--primary) / 0) 38%,
+    hsl(var(--primary) / 0.85) 50%,
+    hsl(var(--primary) / 0) 62%,
+    hsl(var(--primary) / 0) 100%
+  );
+  animation: attack-flow-down 2.2s linear infinite;
+}
+
+@keyframes attack-flow-down {
+  from {
+    transform: translateY(-60%);
+  }
+
+  to {
+    transform: translateY(60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attack-connector::after {
+    animation: none;
+    inset: 0;
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--primary) / 0) 0%,
+      hsl(var(--primary) / 0.45) 50%,
+      hsl(var(--primary) / 0) 100%
+    );
+  }
+}
+
+.export-dialog-content[data-state="open"] {
+  animation: export-dialog-pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.export-dialog-content[data-state="closed"] {
+  animation: export-dialog-pop-out 120ms ease-in;
+}
+
+@keyframes export-dialog-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes export-dialog-pop-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.985);
+  }
+}

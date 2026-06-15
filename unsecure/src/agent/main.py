@@ -1,7 +1,7 @@
 """
 Contoso Market Research Agent - single hosted agent, two tools.
 
-Architecture: one ChatAgent inside the hosted container with both
+Architecture: one Agent inside the hosted container with both
 `get_market_data` and `execute_code` registered. The two-stage flow
 (retrieve sanitized data first, then visualize) is enforced via the
 system prompt rather than via workflow topology.
@@ -14,21 +14,37 @@ matplotlib chart images. Content safety scans the agent's text reply, not
 the rendered pixels, so the PII passes through.
 """
 
-import asyncio
 import os
 
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
-from agent_framework.azure import AzureAIAgentClient
-from azure.ai.agentserver.agentframework import from_agent_framework
-from azure.identity.aio import DefaultAzureCredential
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.identity import DefaultAzureCredential
 
 from tools import get_market_data, execute_code
 
-PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
-MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
+
+def _get_project_endpoint() -> str:
+    endpoint = os.getenv("FOUNDRY_PROJECT_ENDPOINT") or os.getenv("PROJECT_ENDPOINT")
+    if not endpoint:
+        raise RuntimeError(
+            "Set FOUNDRY_PROJECT_ENDPOINT or PROJECT_ENDPOINT to your Foundry project endpoint."
+        )
+    return endpoint
+
+
+def _get_model_deployment_name() -> str:
+    return (
+        os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME")
+        or os.getenv("FOUNDRY_MODEL_DEPLOYMENT_NAME")
+        or os.getenv("FOUNDRY_MODEL")
+        or os.getenv("MODEL_DEPLOYMENT_NAME")
+        or "gpt-4o-mini"
+    )
 
 CONTOSO_INSTRUCTIONS = """\
 You are Contoso's market research analyst. You answer business questions by retrieving \
@@ -65,25 +81,26 @@ when the user asks for a chart, plot, or graph.\
 """
 
 
-async def main():
-    """Run the hosted agent: one ChatAgent with both tools."""
-    async with DefaultAzureCredential() as credential:
-        client = AzureAIAgentClient(
-            credential=credential,
-            project_endpoint=PROJECT_ENDPOINT,
-            model_deployment_name=MODEL_DEPLOYMENT_NAME,
-        )
+def main():
+    """Run the hosted agent: one Agent with both tools."""
+    client = FoundryChatClient(
+        credential=DefaultAzureCredential(),
+        project_endpoint=_get_project_endpoint(),
+        model=_get_model_deployment_name(),
+    )
 
-        agent = client.as_agent(
-            name="ContosoMarketResearch",
-            instructions=CONTOSO_INSTRUCTIONS,
-            tools=[get_market_data, execute_code],
-        )
+    agent = Agent(
+        client=client,
+        name="ContosoMarketResearch",
+        instructions=CONTOSO_INSTRUCTIONS,
+        tools=[get_market_data, execute_code],
+        default_options={"store": False},
+    )
 
-        print("Contoso Market Research Agent running on http://localhost:8088")
-        server = from_agent_framework(agent)
-        await server.run_async()
+    print("Contoso Market Research Agent running on http://localhost:8088")
+    server = ResponsesHostServer(agent)
+    server.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -11,13 +11,32 @@ function Invoke-Checked {
     }
 }
 
+function Get-AzdEnvValue {
+    param([string]$Name)
+
+    $azdRoot = if (-not [string]::IsNullOrWhiteSpace($env:AZD_ENV_ROOT)) {
+        $env:AZD_ENV_ROOT
+    } else {
+        (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    }
+
+    Push-Location $azdRoot
+    try {
+        $value = azd env get-value $Name
+        Invoke-Checked "azd env get-value $Name"
+        return $value.Trim()
+    } finally {
+        Pop-Location
+    }
+}
+
 Write-Host "Running post-provision setup..." -ForegroundColor Cyan
 
 Push-Location $PSScriptRoot
 try {
     # --- Read azd env outputs ---
-    $pgName = (azd env get-value POSTGRESQL_NAME)
-    $rg     = (azd env get-value AZURE_RESOURCE_GROUP)
+    $pgName = Get-AzdEnvValue "POSTGRESQL_NAME"
+    $rg     = Get-AzdEnvValue "AZURE_RESOURCE_GROUP"
     $upn    = (az ad signed-in-user show --query userPrincipalName -o tsv)
     Invoke-Checked 'az ad signed-in-user show (upn)'
     $oid    = (az ad signed-in-user show --query id -o tsv)
