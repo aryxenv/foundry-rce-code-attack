@@ -37,10 +37,17 @@ try {
     # --- Read azd env outputs ---
     $pgName = Get-AzdEnvValue "POSTGRESQL_NAME"
     $rg     = Get-AzdEnvValue "AZURE_RESOURCE_GROUP"
-    $upn    = (az ad signed-in-user show --query userPrincipalName -o tsv)
-    Invoke-Checked 'az ad signed-in-user show (upn)'
-    $oid    = (az ad signed-in-user show --query id -o tsv)
-    Invoke-Checked 'az ad signed-in-user show (oid)'
+    # Resolve the deployer identity WITHOUT Microsoft Graph. `az ad signed-in-user
+    # show` calls Graph, which Continuous Access Evaluation can block
+    # (TokenCreatedWithOutdatedPolicies). The ARM access token already carries the
+    # deployer's object id (oid) and UPN claims, so decode those instead.
+    $armToken = az account get-access-token --query accessToken -o tsv
+    Invoke-Checked 'az account get-access-token'
+    $claimsB64 = $armToken.Split('.')[1].Replace('-', '+').Replace('_', '/')
+    switch ($claimsB64.Length % 4) { 2 { $claimsB64 += '==' } 3 { $claimsB64 += '=' } }
+    $claims = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($claimsB64)) | ConvertFrom-Json
+    $oid = $claims.oid
+    $upn = if ($claims.upn) { $claims.upn } elseif ($claims.unique_name) { $claims.unique_name } else { (az account show --query user.name -o tsv) }
 
     if (-not ($pgName -and $rg -and $upn -and $oid)) {
         Write-Host "  [ERR] Missing POSTGRESQL_NAME / AZURE_RESOURCE_GROUP / signed-in user" -ForegroundColor Red
