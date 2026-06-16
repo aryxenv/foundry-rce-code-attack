@@ -6,6 +6,7 @@ Reads all config from azd env — zero manual input required.
 Usage: python scripts/setup.py
 """
 
+import base64
 import json
 import os
 import shutil
@@ -19,6 +20,34 @@ from azure.identity import AzureCliCredential
 
 # On Windows, `az` is a .cmd file which subprocess.run can't find without shell=True.
 AZ = shutil.which("az") or "az"
+
+
+def get_deployer_upn() -> str:
+    """Resolve the deploying user's UPN WITHOUT Microsoft Graph.
+
+    `az ad signed-in-user show` calls Microsoft Graph, which Continuous Access
+    Evaluation can block (TokenCreatedWithOutdatedPolicies). The ARM access token
+    already carries the UPN claim, so decode that; fall back to `az account show`
+    (also Graph-free). The value must match the PostgreSQL Entra admin name that
+    postprovision.ps1 created for the deployer.
+    """
+    token = subprocess.run(
+        [AZ, "account", "get-access-token", "--query", "accessToken", "-o", "tsv"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        upn = claims.get("upn") or claims.get("unique_name")
+        if upn:
+            return upn
+    except Exception:
+        pass
+    return subprocess.run(
+        [AZ, "account", "show", "--query", "user.name", "-o", "tsv"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
 
 
 def get_azd_env() -> dict[str, str]:
@@ -478,11 +507,8 @@ def main():
         print(f"   PROJECT_NAME={project_name}")
         sys.exit(1)
 
-    # Get deployer UPN for AAD auth to PostgreSQL
-    deployer_upn = subprocess.run(
-        [AZ, "ad", "signed-in-user", "show", "--query", "userPrincipalName", "-o", "tsv"],
-        capture_output=True, text=True, check=True,
-    ).stdout.strip()
+    # Get deployer UPN for AAD auth to PostgreSQL (Graph-free; see get_deployer_upn)
+    deployer_upn = get_deployer_upn()
 
     # Pin credentials to the deployment's tenant. AzureCliCredential is the most
     # reliable on dev machines with multiple tenants — DefaultAzureCredential's
