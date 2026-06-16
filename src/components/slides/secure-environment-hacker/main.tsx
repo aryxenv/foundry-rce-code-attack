@@ -26,6 +26,7 @@ export function SecureEnvironmentHacker({ isActive }: SlideProps) {
   return (
     <SlideFrame
       eyebrow="Act V · Live defense"
+      fill
       isActive={isActive}
       title="The same prompt meets the rebuilt boundary."
     >

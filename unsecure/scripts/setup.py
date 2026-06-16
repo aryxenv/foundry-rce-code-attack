@@ -304,12 +304,54 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     return agent.name, agent.version
 
 
-def start_hosted_agent(account_name: str, project_name: str, agent_name: str, agent_version):
-    """Start the hosted agent deployment so it serves requests.
+def verify_agent_active(account_name: str, project_name: str, agent_name: str) -> bool:
+    """Return True when the hosted agent has an `active` registered version.
 
-    create_version only registers the spec; the deployment sits at min/max=0 (Stopped)
-    until you call `az cognitiveservices agent start`. Idempotent — treats
-    "container already exists with status Running" as success.
+    In the refreshed Foundry hosted-agent model the platform manages the
+    container lifecycle: once a version reports `active` and the agent exposes
+    an endpoint, the container is provisioned on demand at first invocation.
+    `agent show` is the reliable readiness signal — `agent status`/`start`
+    target the legacy per-version container path which no longer exists.
+    """
+    result = subprocess.run(
+        [
+            AZ, "cognitiveservices", "agent", "show",
+            "--account-name", account_name,
+            "--project-name", project_name,
+            "--name", agent_name,
+            "--only-show-errors", "-o", "json",
+        ],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        payload = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return _agent_has_active_version(payload)
+
+
+def _agent_has_active_version(payload) -> bool:
+    """Recursively scan an `agent show` payload for status == active."""
+    if isinstance(payload, dict):
+        if str(payload.get("status", "")).lower() == "active":
+            return True
+        return any(_agent_has_active_version(v) for v in payload.values())
+    if isinstance(payload, list):
+        return any(_agent_has_active_version(v) for v in payload)
+    return False
+
+
+def start_hosted_agent(account_name: str, project_name: str, agent_name: str, agent_version):
+    """Best-effort start of the hosted agent deployment.
+
+    Legacy preview deployments sat at min/max=0 (Stopped) until an explicit
+    `az cognitiveservices agent start`. The refreshed hosted model is
+    serverless — the container is provisioned on demand, so `agent start`
+    targets a container path that returns NotFound. We attempt the start for
+    backwards compatibility, but never fail the deploy when the agent version
+    is already `active`; that is the readiness signal in the current model.
     """
     print(f"[>>] Starting hosted agent '{agent_name}' v{agent_version}...")
     result = subprocess.run(
@@ -327,6 +369,12 @@ def start_hosted_agent(account_name: str, project_name: str, agent_name: str, ag
         print(f"[OK] Hosted agent start requested.")
     elif "already exists" in combined and "running" in combined:
         print(f"[OK] Hosted agent v{agent_version} already Running.")
+    elif verify_agent_active(account_name, project_name, agent_name):
+        # Serverless hosted model: no persistent container to "start".
+        print(
+            f"[OK] Hosted agent v{agent_version} is active "
+            f"(serverless — container provisions on first request)."
+        )
     else:
         # Re-raise so the caller's WARN block surfaces it.
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
@@ -459,18 +507,31 @@ def main():
         )
 
         # create_version only registers the spec — start the deployment so it actually runs,
-        # then poll until it actually reports Running.
-        try:
-            start_hosted_agent(ai_services_name, project_name, agent_name, agent_version)
-            wait_for_agent_running(ai_services_name, project_name, agent_name, agent_version)
-        except Exception as start_err:
-            print(f"\n[ERR] Hosted agent did not reach Running: {start_err}")
-            print(f"   Run manually:")
-            print(f"     az cognitiveservices agent start \\")
-            print(f"       --account-name {ai_services_name} --project-name {project_name} \\")
-            print(f"       --name {agent_name} --agent-version {agent_version}")
-            print(f"   Or click 'Start agent deployment' in the Foundry portal.")
-            sys.exit(1)
+        # create_version only registers the spec — start the deployment (best
+        # effort; the refreshed hosted model is serverless) then confirm the
+        # version is active so the platform will provision it on first request.
+        start_hosted_agent(ai_services_name, project_name, agent_name, agent_version)
+        if verify_agent_active(ai_services_name, project_name, agent_name):
+            # Serverless hosted model: no persistent container to poll. An active
+            # version means the platform will provision it on first request, so
+            # skip the legacy `agent status` wait (which targets a 404 path).
+            print(
+                f"[OK] Hosted agent v{agent_version} is active; the serverless "
+                f"platform provisions the container on first request."
+            )
+        else:
+            try:
+                wait_for_agent_running(
+                    ai_services_name, project_name, agent_name, agent_version
+                )
+            except Exception as start_err:
+                print(f"\n[ERR] Hosted agent did not reach Running: {start_err}")
+                print(f"   Run manually:")
+                print(f"     az cognitiveservices agent start \\")
+                print(f"       --account-name {ai_services_name} --project-name {project_name} \\")
+                print(f"       --name {agent_name} --agent-version {agent_version}")
+                print(f"   Or click 'Start agent deployment' in the Foundry portal.")
+                sys.exit(1)
 
         print(f"\n[OK] Setup complete! Hosted agent deployed: {agent_name} (v{agent_version})")
     except SystemExit:

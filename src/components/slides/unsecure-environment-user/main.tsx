@@ -26,6 +26,7 @@ export function UnsecureEnvironmentUser({ isActive }: SlideProps) {
   return (
     <SlideFrame
       eyebrow="Act II · Live demonstration"
+      fill
       isActive={isActive}
       title="A trusted analyst asks for a market chart."
     >

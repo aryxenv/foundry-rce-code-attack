@@ -14,6 +14,10 @@ interface SlideFrameProps {
   children: ReactNode;
   className?: string;
   titleClassName?: string;
+  /** When true, the body fills the slide with a definite height so children
+   * can scroll internally (used by the live chat demos). Otherwise the body
+   * grows with its content and the slide scrolls. */
+  fill?: boolean;
 }
 
 export function SlideFrame({
@@ -24,6 +28,7 @@ export function SlideFrame({
   children,
   className,
   titleClassName,
+  fill = false,
 }: SlideFrameProps) {
   const exportMode = isPresentationExportMode();
 
@@ -68,7 +73,12 @@ export function SlideFrame({
         </div>
       </header>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-5 pt-6 sm:py-8">
-        <div className="flex h-full min-h-0 flex-col justify-center">
+        <div
+          className={cn(
+            "flex flex-col",
+            fill ? "h-full min-h-0" : "min-h-full justify-center",
+          )}
+        >
           {children}
         </div>
       </div>

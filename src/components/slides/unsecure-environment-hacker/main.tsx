@@ -26,6 +26,7 @@ export function UnsecureEnvironmentHacker({ isActive }: SlideProps) {
   return (
     <SlideFrame
       eyebrow="Act III · Live breach"
+      fill
       isActive={isActive}
       title="The same chart request becomes the breach."
     >

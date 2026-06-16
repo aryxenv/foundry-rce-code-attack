@@ -14,8 +14,9 @@ get_required_azd_env_value() {
 
 resource_group="$(get_required_azd_env_value AZURE_RESOURCE_GROUP)"
 registry_endpoint="$(get_required_azd_env_value AZURE_CONTAINER_REGISTRY_ENDPOINT)"
-web_container_app_name="$(get_required_azd_env_value AZURE_WEB_CONTAINER_APP_NAME)"
-api_container_app_name="$(get_required_azd_env_value AZURE_API_CONTAINER_APP_NAME)"
+# The web + api container apps share a single user-assigned identity. Confirm
+# AcrPull on that one principal so azd deploy can pull the freshly pushed image.
+principal_id="$(get_required_azd_env_value AZURE_APP_IDENTITY_PRINCIPAL_ID)"
 registry_name="${registry_endpoint%%.*}"
 
 registry_id="$(az acr show \
@@ -24,33 +25,25 @@ registry_id="$(az acr show \
   --query id \
   -o tsv)"
 
-for container_app_name in "$api_container_app_name" "$web_container_app_name"; do
-  principal_id="$(az containerapp identity show \
-    --name "$container_app_name" \
-    --resource-group "$resource_group" \
-    --query principalId \
-    -o tsv)"
+attempt=1
+while [ "$attempt" -le 10 ]; do
+  role="$(az role assignment list \
+    --scope "$registry_id" \
+    --assignee-object-id "$principal_id" \
+    --query "[?roleDefinitionName=='AcrPull'].roleDefinitionName" \
+    -o tsv 2>/dev/null || true)"
 
-  attempt=1
-  while [ "$attempt" -le 10 ]; do
-    role="$(az role assignment list \
-      --scope "$registry_id" \
-      --assignee-object-id "$principal_id" \
-      --query "[?roleDefinitionName=='AcrPull'].roleDefinitionName" \
-      -o tsv 2>/dev/null || true)"
+  if [ "$role" = "AcrPull" ]; then
+    echo "AcrPull confirmed for shared container app identity."
+    break
+  fi
 
-    if [ "$role" = "AcrPull" ]; then
-      echo "AcrPull confirmed for $container_app_name."
-      break
-    fi
+  if [ "$attempt" -eq 10 ]; then
+    echo "AcrPull role was not visible for the shared container app identity after waiting." >&2
+    exit 1
+  fi
 
-    if [ "$attempt" -eq 10 ]; then
-      echo "AcrPull role was not visible for '$container_app_name' after waiting." >&2
-      exit 1
-    fi
-
-    echo "Waiting for AcrPull RBAC propagation for $container_app_name ($attempt/10)..."
-    sleep 30
-    attempt=$((attempt + 1))
-  done
+  echo "Waiting for AcrPull RBAC propagation ($attempt/10)..."
+  sleep 30
+  attempt=$((attempt + 1))
 done

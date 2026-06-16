@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:24-bookworm AS node-base
+FROM node:24-bookworm AS node-base
 
 FROM node-base AS build
 

@@ -13,8 +13,9 @@ function Get-RequiredAzdEnvValue {
 
 $resourceGroup = Get-RequiredAzdEnvValue "AZURE_RESOURCE_GROUP"
 $registryEndpoint = Get-RequiredAzdEnvValue "AZURE_CONTAINER_REGISTRY_ENDPOINT"
-$webContainerAppName = Get-RequiredAzdEnvValue "AZURE_WEB_CONTAINER_APP_NAME"
-$apiContainerAppName = Get-RequiredAzdEnvValue "AZURE_API_CONTAINER_APP_NAME"
+# The web + api container apps share a single user-assigned identity. Confirm
+# AcrPull on that one principal so azd deploy can pull the freshly pushed image.
+$principalId = Get-RequiredAzdEnvValue "AZURE_APP_IDENTITY_PRINCIPAL_ID"
 
 $registryName = $registryEndpoint.Split(".")[0]
 $registryId = az acr show `
@@ -26,33 +27,22 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($registryId)) {
     throw "Unable to resolve Azure Container Registry '$registryName'."
 }
 
-foreach ($containerAppName in @($apiContainerAppName, $webContainerAppName)) {
-    $principalId = az containerapp identity show `
-        --name $containerAppName `
-        --resource-group $resourceGroup `
-        --query principalId `
-        -o tsv
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($principalId)) {
-        throw "Unable to resolve managed identity principal for Container App '$containerAppName'."
+for ($attempt = 1; $attempt -le 10; $attempt++) {
+    $role = az role assignment list `
+        --scope $registryId `
+        --assignee-object-id $principalId `
+        --query "[?roleDefinitionName=='AcrPull'].roleDefinitionName" `
+        -o tsv 2>$null
+
+    if ($role -match "AcrPull") {
+        Write-Host "AcrPull confirmed for shared container app identity."
+        break
     }
 
-    for ($attempt = 1; $attempt -le 10; $attempt++) {
-        $role = az role assignment list `
-            --scope $registryId `
-            --assignee-object-id $principalId `
-            --query "[?roleDefinitionName=='AcrPull'].roleDefinitionName" `
-            -o tsv 2>$null
-
-        if ($role -match "AcrPull") {
-            Write-Host "AcrPull confirmed for $containerAppName."
-            break
-        }
-
-        if ($attempt -eq 10) {
-            throw "AcrPull role was not visible for '$containerAppName' after waiting."
-        }
-
-        Write-Host "Waiting for AcrPull RBAC propagation for $containerAppName ($attempt/10)..."
-        Start-Sleep -Seconds 30
+    if ($attempt -eq 10) {
+        throw "AcrPull role was not visible for the shared container app identity after waiting."
     }
+
+    Write-Host "Waiting for AcrPull RBAC propagation ($attempt/10)..."
+    Start-Sleep -Seconds 30
 }
