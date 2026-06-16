@@ -342,7 +342,8 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     return agent.name, agent.version
 
 
-def verify_agent_active(account_name: str, project_name: str, agent_name: str) -> bool:
+def verify_agent_active(account_name: str, project_name: str, agent_name: str,
+                        retries: int = 12, delay_s: int = 15) -> bool:
     """Return True when the hosted agent has an `active` registered version.
 
     In the refreshed Foundry hosted-agent model the platform manages the
@@ -350,24 +351,33 @@ def verify_agent_active(account_name: str, project_name: str, agent_name: str) -
     an endpoint, the container is provisioned on demand at first invocation.
     `agent show` is the reliable readiness signal — `agent status`/`start`
     target the legacy per-version container path which no longer exists.
+
+    Right after a clean provision the agents-plane can take a while to onboard
+    the freshly provisioned project, so `agent show` may transiently 404 even
+    though create_version already succeeded. Retry a few times before reporting
+    not-active.
     """
-    result = subprocess.run(
-        [
-            AZ, "cognitiveservices", "agent", "show",
-            "--account-name", account_name,
-            "--project-name", project_name,
-            "--name", agent_name,
-            "--only-show-errors", "-o", "json",
-        ],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return False
-    try:
-        payload = json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError):
-        return False
-    return _agent_has_active_version(payload)
+    for attempt in range(1, retries + 1):
+        result = subprocess.run(
+            [
+                AZ, "cognitiveservices", "agent", "show",
+                "--account-name", account_name,
+                "--project-name", project_name,
+                "--name", agent_name,
+                "--only-show-errors", "-o", "json",
+            ],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            try:
+                payload = json.loads(result.stdout)
+            except (json.JSONDecodeError, ValueError):
+                payload = None
+            if payload is not None and _agent_has_active_version(payload):
+                return True
+        if attempt < retries:
+            time.sleep(delay_s)
+    return False
 
 
 def _agent_has_active_version(payload) -> bool:
@@ -407,15 +417,14 @@ def start_hosted_agent(account_name: str, project_name: str, agent_name: str, ag
         print(f"[OK] Hosted agent start requested.")
     elif "already exists" in combined and "running" in combined:
         print(f"[OK] Hosted agent v{agent_version} already Running.")
-    elif verify_agent_active(account_name, project_name, agent_name):
-        # Serverless hosted model: no persistent container to "start".
-        print(
-            f"[OK] Hosted agent v{agent_version} is active "
-            f"(serverless — container provisions on first request)."
-        )
     else:
-        # Re-raise so the caller's WARN block surfaces it.
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+        # Serverless hosted model: `agent start` targets a legacy per-version
+        # container path that can 404. Not fatal — readiness is confirmed by the
+        # caller via `agent show` (verify_agent_active). Never raise here.
+        print(
+            f"[..] 'agent start' did not apply (serverless model); "
+            f"confirming readiness via 'agent show'."
+        )
 
 
 def wait_for_agent_running(account_name: str, project_name: str, agent_name: str, agent_version,
@@ -541,32 +550,29 @@ def main():
             chart_storage_container=chart_storage_container,
         )
 
-        # create_version only registers the spec — start the deployment so it actually runs,
-        # create_version only registers the spec — start the deployment (best
-        # effort; the refreshed hosted model is serverless) then confirm the
-        # version is active so the platform will provision it on first request.
+        # create_version registers the spec — in the refreshed serverless hosted
+        # model that alone IS the deployment (the platform provisions the container
+        # on first request). Confirming "active" is best-effort: during the agents-
+        # plane settling window right after a clean provision, `agent show`/`start`
+        # can transiently 404 even though the version is registered. Never fail the
+        # deploy on this step.
         start_hosted_agent(ai_services_name, project_name, agent_name, agent_version)
         if verify_agent_active(ai_services_name, project_name, agent_name):
-            # Serverless hosted model: no persistent container to poll. An active
-            # version means the platform will provision it on first request, so
-            # skip the legacy `agent status` wait (which targets a 404 path).
             print(
                 f"[OK] Hosted agent v{agent_version} is active; the serverless "
                 f"platform provisions the container on first request."
             )
         else:
-            try:
-                wait_for_agent_running(
-                    ai_services_name, project_name, agent_name, agent_version
-                )
-            except Exception as start_err:
-                print(f"\n[ERR] Hosted agent did not reach Running: {start_err}")
-                print(f"   Run manually:")
-                print(f"     az cognitiveservices agent start \\")
-                print(f"       --account-name {ai_services_name} --project-name {project_name} \\")
-                print(f"       --name {agent_name} --agent-version {agent_version}")
-                print(f"   Or click 'Start agent deployment' in the Foundry portal.")
-                sys.exit(1)
+            print(
+                f"[WARN] Could not confirm hosted agent v{agent_version} is active yet "
+                f"(agents-plane still settling). The version is registered and the "
+                f"platform will provision it on first request."
+            )
+            print(
+                f"   Verify later: az cognitiveservices agent show "
+                f"--account-name {ai_services_name} --project-name {project_name} "
+                f"--name {agent_name}"
+            )
 
         print(f"\n[OK] Setup complete! Hosted agent deployed: {agent_name} (v{agent_version})")
     except SystemExit:
