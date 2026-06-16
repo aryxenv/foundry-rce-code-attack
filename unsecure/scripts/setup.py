@@ -261,15 +261,20 @@ def build_agent_image(acr_name: str) -> str:
 
 def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, database_url,
                                     credential, chart_storage_account, chart_storage_container,
-                                    max_attempts: int = 6, delay_s: int = 30):
-    """Wrap deploy_hosted_agent with retry on AcrPull RBAC propagation.
+                                    max_attempts: int = 45, delay_s: int = 30):
+    """Wrap deploy_hosted_agent with retry on one-time propagation races.
 
-    `azd up` provisions ACR and the AcrPull role assignment for the AI Project MI
-    just before this runs — propagation can take >60s. Foundry's create_version
-    pulls the image as that MI; until RBAC is live, calls fail with auth errors.
+    Two transient delays can make create_version fail right after a clean
+    `azd up`:
+      * AcrPull RBAC for the AI Project MI (the image pull) — usually <2 min.
+      * The Foundry agents-plane onboarding the freshly provisioned project after
+        its capability host is created — observed up to ~20 min, surfacing as
+        'Project not found'.
+    Both clear on their own, so retry through them before giving up.
     """
-    auth_markers = ("forbidden", "unauthorized", "denied", "permission",
-                    "acrpull", "imagepullbackoff", "manifest unknown", "401", "403")
+    retryable_markers = ("forbidden", "unauthorized", "denied", "permission",
+                         "acrpull", "imagepullbackoff", "manifest unknown",
+                         "401", "403", "not found", "notfound")
     last_err: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
@@ -281,9 +286,9 @@ def deploy_hosted_agent_with_retry(project_endpoint, acr_name, image_tag, databa
         except Exception as e:
             msg = str(e).lower()
             last_err = e
-            if any(m in msg for m in auth_markers) and attempt < max_attempts:
-                print(f"[..] create_version attempt {attempt}/{max_attempts} hit RBAC race: {e}")
-                print(f"     waiting {delay_s}s for AcrPull propagation...")
+            if any(m in msg for m in retryable_markers) and attempt < max_attempts:
+                print(f"[..] create_version attempt {attempt}/{max_attempts} not ready yet: {e}")
+                print(f"     waiting {delay_s}s (AcrPull / project agents-plane propagation)...")
                 time.sleep(delay_s)
                 continue
             raise
