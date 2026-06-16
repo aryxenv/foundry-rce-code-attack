@@ -15,6 +15,10 @@ dist-ssr
 server/.env
 exports/
 
+# Azure / azd
+.azure/
+infra/main.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

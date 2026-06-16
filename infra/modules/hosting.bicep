@@ -15,6 +15,12 @@ param containerRegistryName string
 @description('Login server of the shared Azure Container Registry.')
 param containerRegistryEndpoint string
 
+@description('Foundry AI project endpoint used by the api to invoke hosted agents.')
+param projectEndpoint string
+
+@description('Name of the Azure AI Services (Foundry) account hosting the agents.')
+param aiServicesName string
+
 @description('Tags applied to Azure resources.')
 param tags object = {}
 
@@ -35,6 +41,12 @@ var apiServiceTags = union(serviceTags, {
 var acrPullRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+)
+// Azure AI User: grants the api's managed identity permission to invoke the
+// hosted Foundry agents (data-plane responses calls) at demo time.
+var azureAiUserRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '53ca6127-db72-4b80-b1b0-d745d6d5456d'
 )
 var webContainerAppName = 'ca-${containerAppEnvSegment}-${resourceSuffix}-web'
 var apiContainerAppName = 'ca-${containerAppEnvSegment}-${resourceSuffix}-api'
@@ -66,6 +78,23 @@ resource appRegistryPullAccess 'Microsoft.Authorization/roleAssignments@2022-04-
   scope: registry
   properties: {
     roleDefinitionId: acrPullRoleDefinitionId
+    principalId: appIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = {
+  name: aiServicesName
+}
+
+// Let the api's user-assigned identity call the hosted agents' responses
+// endpoints. Granted on the AI Services account so it covers every agent the
+// project hosts (secure + unsecure).
+resource appAgentInvokeAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aiServices.id, appIdentity.id, azureAiUserRoleDefinitionId)
+  scope: aiServices
+  properties: {
+    roleDefinitionId: azureAiUserRoleDefinitionId
     principalId: appIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
@@ -199,6 +228,30 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'WEBSLIDES_CORS_ALLOWED_ORIGINS'
               value: webUrl
             }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: appIdentity.properties.clientId
+            }
+            {
+              name: 'DEMO_AGENT_PROJECT_ENDPOINT'
+              value: projectEndpoint
+            }
+            {
+              name: 'DEMO_AGENT_NAME_UNSECURE'
+              value: 'contoso-market-research'
+            }
+            {
+              name: 'DEMO_AGENT_NAME_SECURE'
+              value: 'contoso-market-research-secure'
+            }
+            {
+              name: 'DEMO_AGENT_API_VERSION'
+              value: '2025-11-15-preview'
+            }
+            {
+              name: 'DEMO_AGENT_TIMEOUT_SECONDS'
+              value: '150'
+            }
           ]
           resources: {
             cpu: json('1.0')
@@ -214,6 +267,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
   }
   dependsOn: [
     appRegistryPullAccess
+    appAgentInvokeAccess
   ]
 }
 

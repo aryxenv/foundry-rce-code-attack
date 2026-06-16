@@ -277,8 +277,12 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
 
     image = f"{acr_name}.azurecr.io/contoso-agent:{image_tag}"
 
+    # NOTE: All FOUNDRY_* and AGENT_* environment variables are reserved for
+    # platform use on hosted agents (the platform injects FOUNDRY_PROJECT_ENDPOINT
+    # and the model itself). Passing them in the deployment payload is rejected
+    # with a ValidationError, so we only set non-reserved aliases here that
+    # FoundryChatClient / main.py can fall back to.
     env_vars = {
-        "FOUNDRY_PROJECT_ENDPOINT": project_endpoint,
         "PROJECT_ENDPOINT": project_endpoint,
         "AZURE_AI_MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
         "MODEL_DEPLOYMENT_NAME": "gpt-4o-mini",
@@ -292,7 +296,7 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     agent = client.agents.create_version(
         agent_name="contoso-market-research",
         definition=HostedAgentDefinition(
-            container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="v1")],
+            container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="1.0.0")],
             cpu="1",
             memory="2Gi",
             image=image,

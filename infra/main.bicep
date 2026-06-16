@@ -52,6 +52,8 @@ module hosting './modules/hosting.bicep' = {
     containerAppLocation: location
     containerRegistryName: agentResources.outputs.containerRegistryName
     containerRegistryEndpoint: agentResources.outputs.containerRegistryEndpoint
+    projectEndpoint: agentResources.outputs.projectEndpoint
+    aiServicesName: agentResources.outputs.aiServicesName
     tags: tags
   }
 }

@@ -14,7 +14,6 @@
   },
   "modelDeploymentName": "gpt-4o-mini",
   "containerEnv": [
-    { "name": "FOUNDRY_PROJECT_ENDPOINT", "from": "projectEndpoint" },
     { "name": "PROJECT_ENDPOINT",         "from": "projectEndpoint" },
     { "name": "AZURE_AI_MODEL_DEPLOYMENT_NAME", "literal": "modelDeploymentName" },
     { "name": "MODEL_DEPLOYMENT_NAME",         "literal": "modelDeploymentName" },
