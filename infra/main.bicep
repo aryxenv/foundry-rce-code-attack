@@ -21,6 +21,7 @@ param deployerPrincipalType string = 'User'
 var resourceSuffix = take(uniqueString(subscription().id, environmentName, location), 8)
 var tags = {
   'azd-env-name': environmentName
+  SecurityControl: 'Ignore'
   workload: 'webslides'
 }
 

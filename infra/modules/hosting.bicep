@@ -30,6 +30,7 @@ var cleanedEnvironmentName = take(replace(replace(replace(toLower(environmentNam
 // segment. Truncate to 14 to keep a safety margin.
 var containerAppEnvSegment = take(cleanedEnvironmentName, 14)
 var serviceTags = union(tags, {
+  SecurityControl: 'Ignore'
   hosting: 'webslides'
 })
 var webServiceTags = union(serviceTags, {
