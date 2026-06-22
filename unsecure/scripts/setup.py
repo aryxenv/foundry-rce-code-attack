@@ -301,7 +301,12 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
                          chart_storage_container: str | None = None):
     """Deploy the hosted agent to Foundry via HostedAgentDefinition."""
     from azure.ai.projects import AIProjectClient
-    from azure.ai.projects.models import HostedAgentDefinition, ProtocolVersionRecord, AgentProtocol
+    from azure.ai.projects.models import (
+        HostedAgentDefinition,
+        ProtocolVersionRecord,
+        AgentProtocol,
+        ContainerConfiguration,
+    )
 
     client = AIProjectClient(
         endpoint=project_endpoint,
@@ -330,10 +335,10 @@ def deploy_hosted_agent(project_endpoint: str, acr_name: str, image_tag: str,
     agent = client.agents.create_version(
         agent_name="contoso-market-research",
         definition=HostedAgentDefinition(
-            container_protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="1.0.0")],
+            protocol_versions=[ProtocolVersionRecord(protocol=AgentProtocol.RESPONSES, version="1.0.0")],
             cpu="1",
             memory="2Gi",
-            image=image,
+            container_configuration=ContainerConfiguration(image=image),
             environment_variables=env_vars,
         ),
     )
