@@ -30,8 +30,8 @@ export function VulnerableArchitecture({
     <SlideFrame
       eyebrow="Vulnerable architecture"
       isActive={isActive}
-      title="The vulnerable design puts code next to the data."
-      titleClassName="lg:whitespace-normal"
+      title="Code runs next to the data."
+      titleClassName="lg:whitespace-normal lg:text-4xl xl:text-5xl"
     >
       <div className="grid grid-cols-1 gap-6 lg:min-h-full lg:items-center lg:grid-cols-[0.72fr_1.28fr] lg:gap-8">
         <div className="grid min-w-0 content-center gap-3">

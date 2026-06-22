@@ -8,16 +8,17 @@ import { cn } from "@/lib/utils";
 
 const defenses = [
   {
-    label: "Data API",
-    title: "Only get_market_data reaches PostgreSQL.",
+    label: "Narrow tool",
+    title: "One narrow tool reaches the database, not generated code.",
   },
   {
-    label: "Sandbox",
-    title: "Foundry Code Interpreter receives sanitized rows.",
+    label: "Sealed sandbox",
+    title:
+      "Code Interpreter runs in a sealed room. It can chart, but it can't carry data out.",
   },
   {
-    label: "Storage",
-    title: "Generated images return through private chart storage.",
+    label: "Sanitized rows",
+    title: "Only the cleaned rows cross in. No raw tables, no credentials.",
   },
 ];
 
@@ -30,8 +31,8 @@ export function SecureArchitecture({
     <SlideFrame
       eyebrow="Secure architecture"
       isActive={isActive}
-      title="Secure design separates data from generated code."
-      titleClassName="lg:whitespace-normal"
+      title="Data and generated code, separated."
+      titleClassName="lg:whitespace-normal lg:text-4xl xl:text-5xl"
     >
       <div className="grid grid-cols-1 gap-6 lg:min-h-full lg:auto-rows-max lg:items-center lg:grid-cols-[0.72fr_1.28fr] lg:gap-8">
         <div className="grid min-w-0 content-center gap-3">

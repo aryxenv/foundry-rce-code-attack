@@ -6,22 +6,20 @@ import { cn } from "@/lib/utils";
 
 const acts = [
   {
-    label: "Step 1",
-    title: "A trusted analyst asks for a chart.",
-    detail:
-      "The market research agent can query Contoso data and craft charts for business leaders.",
+    label: "Useful",
+    title: "An analyst asks for a Q3 sales chart.",
+    detail: "The agent retrieves data and plots it. No SQL, no notebook.",
   },
   {
-    label: "Step 2",
-    title: "The charting runtime sits next to data access.",
-    detail:
-      "In the unsecure build, generated Python runs beside database credentials and raw tables.",
+    label: "Risky",
+    title: "Chart code runs next to credentials.",
+    detail: "The same runtime holds DATABASE_URL and raw tables.",
   },
   {
-    label: "Step 3",
-    title: "The secure design moves generated code to a sandbox.",
+    label: "Safer",
+    title: "Code moves to a sealed sandbox.",
     detail:
-      "The secure build keeps data access local and sends only sanitized rows to Foundry Code Interpreter.",
+      "Code Interpreter is isolated and can't reach outside its container.",
   },
 ];
 
@@ -39,23 +37,23 @@ export function MarketResearchOverview({
     >
       <div className="grid grid-cols-1 gap-5 lg:min-h-full lg:auto-rows-max lg:items-center lg:grid-cols-[0.9fr_1.1fr] lg:gap-6">
         <div className="min-w-0 self-center space-y-4">
-          <p className="max-w-3xl text-2xl font-semibold leading-tight tracking-[-0.03em] sm:text-3xl lg:text-3xl xl:text-4xl">
-            One chart request. One poisoned prompt. One safer design.
+          <p className="max-w-3xl text-2xl font-semibold leading-tight tracking-[-0.03em] sm:text-3xl lg:text-3xl">
+            A useful agent becomes a data exfiltration path.
           </p>
           <p className="text-sm leading-6 text-muted-foreground sm:text-base lg:text-sm xl:text-base">
-            The live demos show the same workflow three ways: a normal request,
-            the injected prompt, and the rebuilt secure path.
+            Three live demos, one workflow: the normal request, the attack, and
+            the rebuilt secure path.
           </p>
         </div>
 
-        <div className="grid min-w-0 gap-3 lg:grid-rows-3">
+        <div className="grid min-w-0 gap-2.5 lg:grid-rows-3">
           {acts.map((act, index) => {
             const selected = cycleIndex === index;
 
             return (
               <Card
                 className={cn(
-                  "cursor-pointer border-2 p-4 transition-colors duration-300 xl:p-5",
+                  "cursor-pointer border-2 p-4 transition-colors duration-300",
                   selected ? "border-primary" : "border-border",
                 )}
                 key={act.title}
@@ -64,10 +62,10 @@ export function MarketResearchOverview({
                 <Badge variant={selected ? "default" : "outline"}>
                   {act.label}
                 </Badge>
-                <p className="mt-3 text-lg font-semibold leading-snug tracking-[-0.02em] xl:text-xl">
+                <p className="mt-2.5 text-lg font-semibold leading-snug tracking-[-0.02em]">
                   {act.title}
                 </p>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground xl:leading-6">
+                <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
                   {act.detail}
                 </p>
               </Card>

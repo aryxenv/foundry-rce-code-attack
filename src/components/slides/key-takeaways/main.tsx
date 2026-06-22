@@ -1,27 +1,48 @@
+import microsoftLogo from "@/assets/microsoft.svg";
+import type { ReactNode } from "react";
 import type { SlideProps } from "@/components/slides/types";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SlideFrame } from "@/components/ui/slide-frame";
 import { cn } from "@/lib/utils";
 
-const verdicts = [
+interface Verdict {
+  label: string;
+  title: string;
+  detail: ReactNode;
+}
+
+const MicrosoftMark = () => (
+  <img
+    src={microsoftLogo}
+    alt="Microsoft"
+    className="mx-1 inline-block h-[0.95em] w-auto align-[-0.12em] object-contain"
+  />
+);
+
+const verdicts: Verdict[] = [
   {
-    label: "Boundary",
-    title: "Tool boundaries beat prompt wording.",
+    label: "Narrow tools",
+    title: "Keep data behind one tool.",
     detail:
-      "The secure agent still lets the model create charts, but it removes the privileged context from generated code.",
+      "get_market_data is the only path to the database, not generated code.",
   },
   {
-    label: "Watch",
-    title: "Images are output channels too.",
+    label: "Sandbox + inspect",
+    title: "Images are output channels.",
     detail:
-      "The deck renders returned charts directly, so reviewers see the artifact, not just text.",
+      "Run code on sanitized rows, and review every artifact, not just text.",
   },
   {
-    label: "Deploy",
-    title: "One deployment owns the whole demo.",
-    detail:
-      "Root infrastructure now deploys the web app, API, shared data plane, and both agents into one resource group.",
+    label: "Built-in by default",
+    title: "Prefer built-in tools.",
+    detail: (
+      <>
+        Built-in tools from <MicrosoftMark />
+        <span className="font-medium text-foreground">Microsoft</span>, like
+        Foundry Code Interpreter, bring enterprise-grade security by design.
+      </>
+    ),
   },
 ];
 
@@ -34,8 +55,8 @@ export function KeyTakeaways({
     <SlideFrame
       eyebrow="Key takeaways"
       isActive={isActive}
-      title="Same scenario. Safer design."
-      titleClassName="lg:whitespace-normal"
+      title="Tool boundaries beat prompt wording."
+      titleClassName="lg:whitespace-normal lg:text-4xl xl:text-5xl"
     >
       <div className="grid grid-cols-1 gap-5 lg:min-h-full lg:content-center lg:grid-cols-3 lg:gap-6">
         {verdicts.map((verdict, index) => {
