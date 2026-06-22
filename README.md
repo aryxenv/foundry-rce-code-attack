@@ -166,3 +166,9 @@ Run from the repository root:
 ```pwsh
 azd down --purge
 ```
+
+## Collaborators
+
+- Aryan Shah - Solutions Engineer (Cloud & AI)
+- Remy van den Spiegel - Solutions Engineer (Security)
+- Narjiss Youyou - Cloud Solutions Architect (Cloud & AI)
