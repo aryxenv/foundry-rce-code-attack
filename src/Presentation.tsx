@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { KeyTakeaways } from "@/components/slides/key-takeaways/main";
 import { MarketResearchOverview } from "@/components/slides/market-research-overview/main";
-import { PromptInjectionFlow } from "@/components/slides/prompt-injection-flow/main";
 import { SecureEnvironmentHacker } from "@/components/slides/secure-environment-hacker/main";
 import { SecureArchitecture } from "@/components/slides/secure-architecture/main";
 import { UnsecureEnvironmentHacker } from "@/components/slides/unsecure-environment-hacker/main";
@@ -49,19 +48,13 @@ const slides: SlideDefinition[] = [
   },
   {
     id: "unsecure-environment-user",
-    label: "Live demo: trusted analyst",
+    label: "Demo 1 · Trusted analyst",
     Component: UnsecureEnvironmentUser,
     cycleItems: 0,
   },
   {
-    id: "prompt-injection-flow",
-    label: "Prompt injection flow",
-    Component: PromptInjectionFlow,
-    cycleItems: 3,
-  },
-  {
     id: "unsecure-environment-hacker",
-    label: "Live demo: injected prompt",
+    label: "Demo 2 · Recon to breach",
     Component: UnsecureEnvironmentHacker,
     cycleItems: 0,
   },
@@ -73,7 +66,7 @@ const slides: SlideDefinition[] = [
   },
   {
     id: "secure-environment-hacker",
-    label: "Live demo: secure boundary",
+    label: "Demo 3 · Secure boundary",
     Component: SecureEnvironmentHacker,
     cycleItems: 0,
   },
