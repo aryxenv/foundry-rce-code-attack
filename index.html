@@ -2,15 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Foundry RCE demo</title>
     <style>
       #app-loader {
-        --background: 40 100% 98%;
-        --foreground: 30 10% 20%;
-        --muted: 40 30% 88%;
-        --muted-foreground: 30 8% 38%;
+        --background: 0 0% 6%;
+        --foreground: 0 0% 96%;
+        --muted: 0 0% 16%;
+        --muted-foreground: 0 0% 68%;
+        --primary: 260 82% 65%;
         position: fixed;
         inset: 0;
         z-index: 9999;
@@ -67,7 +68,7 @@
         height: 100%;
         width: 40%;
         border-radius: 999px;
-        background: hsl(var(--foreground));
+        background: hsl(var(--primary));
         animation: app-loader-slide 1.15s ease-in-out infinite;
       }
       #app-loader .app-loader-caption {
@@ -103,7 +104,7 @@
       <div class="app-loader-lockup">
         <img src="/microsoft.svg" alt="Microsoft" />
         <span class="app-loader-x" aria-hidden="true">&times;</span>
-        <img src="/account.webp" alt="Foundry" />
+        <img src="/account.png" alt="Foundry" />
       </div>
       <div class="app-loader-track" aria-hidden="true"></div>
       <span class="app-loader-caption">Loading</span>

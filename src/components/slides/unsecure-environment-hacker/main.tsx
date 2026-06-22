@@ -25,7 +25,7 @@ const infoCards = [
 export function UnsecureEnvironmentHacker({ isActive }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="Act III · Live breach"
+      eyebrow="Live demo · injected prompt"
       fill
       isActive={isActive}
       title="The same chart request becomes the breach."

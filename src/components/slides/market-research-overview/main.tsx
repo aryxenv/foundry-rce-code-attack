@@ -6,33 +6,33 @@ import { cn } from "@/lib/utils";
 
 const acts = [
   {
-    label: "Act I",
-    title: "A trusted analyst enters the hall.",
+    label: "Step 1",
+    title: "A trusted analyst asks for a chart.",
     detail:
       "The market research agent can query Contoso data and craft charts for business leaders.",
   },
   {
-    label: "Act II",
-    title: "The charting chamber is too close to the vault.",
+    label: "Step 2",
+    title: "The charting runtime sits next to data access.",
     detail:
       "In the unsecure build, generated Python runs beside database credentials and raw tables.",
   },
   {
-    label: "Act III",
-    title: "The keep is rebuilt with a sandboxed forge.",
+    label: "Step 3",
+    title: "The secure design moves generated code to a sandbox.",
     detail:
       "The secure build keeps data access local and sends only sanitized rows to Foundry Code Interpreter.",
   },
 ];
 
-export function MarketResearchQuest({
+export function MarketResearchOverview({
   isActive,
   cycleIndex,
   onSelectCycle,
 }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="The tale"
+      eyebrow="Scenario overview"
       isActive={isActive}
       title="One chart. One attack. One fix."
       titleClassName="lg:whitespace-normal lg:text-4xl xl:text-5xl"
@@ -43,8 +43,8 @@ export function MarketResearchQuest({
             One chart request. One poisoned prompt. One safer design.
           </p>
           <p className="text-sm leading-6 text-muted-foreground sm:text-base lg:text-sm xl:text-base">
-            The live demos sit inside the story: first a normal request, then
-            the malicious prompt, then the rebuilt secure path.
+            The live demos show the same workflow three ways: a normal request,
+            the injected prompt, and the rebuilt secure path.
           </p>
         </div>
 

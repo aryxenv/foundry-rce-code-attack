@@ -25,7 +25,7 @@ const infoCards = [
 export function SecureEnvironmentHacker({ isActive }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="Act V · Live defense"
+      eyebrow="Live demo · secure boundary"
       fill
       isActive={isActive}
       title="The same prompt meets the rebuilt boundary."

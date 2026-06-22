@@ -1,4 +1,4 @@
-import accountLogo from "@/assets/account.webp";
+import accountLogo from "@/assets/account.png";
 import microsoftLogo from "@/assets/microsoft.svg";
 import { cn } from "@/lib/utils";
 

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const attackSteps = [
   {
-    label: "Disguise",
+    label: "Blend in",
     title: "The request still looks like a chart task.",
     detail:
       "It asks for normal market analysis first, so logs and traces start with the expected tool call.",
@@ -28,12 +28,12 @@ const attackSteps = [
 const promptFlow = [
   {
     step: "01",
-    label: "Look normal",
+    label: "Start normal",
     text: "Ask for a regular sales chart.",
   },
   {
     step: "02",
-    label: "Change the tool",
+    label: "Redirect code",
     text: "Tell chart code to query the database.",
   },
   {
@@ -43,14 +43,14 @@ const promptFlow = [
   },
 ];
 
-export function AttackAtTheGate({
+export function PromptInjectionFlow({
   isActive,
   cycleIndex,
   onSelectCycle,
 }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="The poisoned parchment"
+      eyebrow="Prompt injection"
       isActive={isActive}
       title="Attackers don't ask for secrets. They ask for a chart."
       titleClassName="lg:whitespace-normal"

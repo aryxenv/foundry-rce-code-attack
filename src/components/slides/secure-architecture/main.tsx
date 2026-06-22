@@ -1,4 +1,4 @@
-import unsecureArchitecture from "@/assets/unsecure_architecture.png";
+import safeArchitecture from "@/assets/safe_architecture.png";
 import type { SlideProps } from "@/components/slides/types";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -6,36 +6,36 @@ import { ImageDialog } from "@/components/ui/image-dialog";
 import { SlideFrame } from "@/components/ui/slide-frame";
 import { cn } from "@/lib/utils";
 
-const weakPoints = [
+const defenses = [
   {
-    label: "One chamber",
-    title: "Data access and chart code share a container.",
+    label: "Data API",
+    title: "Only get_market_data reaches PostgreSQL.",
   },
   {
-    label: "One secret",
-    title: "Generated Python can inherit DATABASE_URL.",
+    label: "Sandbox",
+    title: "Foundry Code Interpreter receives sanitized rows.",
   },
   {
-    label: "One image",
-    title: "Pixel output can smuggle data past text review.",
+    label: "Storage",
+    title: "Generated images return through private chart storage.",
   },
 ];
 
-export function UnsecureKeepArchitecture({
+export function SecureArchitecture({
   isActive,
   cycleIndex,
   onSelectCycle,
 }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="The old keep"
+      eyebrow="Secure architecture"
       isActive={isActive}
-      title="The vulnerable design puts code next to the data."
+      title="Secure design separates data from generated code."
       titleClassName="lg:whitespace-normal"
     >
-      <div className="grid grid-cols-1 gap-6 lg:min-h-full lg:items-center lg:grid-cols-[0.72fr_1.28fr] lg:gap-8">
+      <div className="grid grid-cols-1 gap-6 lg:min-h-full lg:auto-rows-max lg:items-center lg:grid-cols-[0.72fr_1.28fr] lg:gap-8">
         <div className="grid min-w-0 content-center gap-3">
-          {weakPoints.map((point, index) => {
+          {defenses.map((defense, index) => {
             const selected = cycleIndex === index;
 
             return (
@@ -44,41 +44,41 @@ export function UnsecureKeepArchitecture({
                   "cursor-pointer border-2 p-5 transition-colors duration-300",
                   selected ? "border-primary" : "border-border",
                 )}
-                key={point.title}
+                key={defense.title}
                 onClick={() => onSelectCycle(index)}
               >
                 <Badge variant={selected ? "default" : "outline"}>
-                  {point.label}
+                  {defense.label}
                 </Badge>
                 <p className="mt-4 text-lg font-semibold leading-snug tracking-[-0.02em]">
-                  {point.title}
+                  {defense.title}
                 </p>
               </Card>
             );
           })}
         </div>
 
-        <Card className="min-w-0 self-center overflow-hidden p-4">
+        <Card className="h-fit min-w-0 self-center overflow-hidden p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <Badge variant="muted">Unsecure architecture</Badge>
+            <Badge variant="muted">Secure architecture</Badge>
             <span className="text-xs font-semibold text-muted-foreground">
-              Agent container boundary
+              Sandbox boundary
             </span>
           </div>
           <ImageDialog
-            alt="Unsecure architecture diagram showing local code execution near database access"
-            description="Expanded view of the unsecure agent architecture."
-            src={unsecureArchitecture}
-            title="Unsecure architecture"
+            alt="Secure architecture diagram showing Foundry Code Interpreter isolated from database credentials"
+            description="Expanded view of the secure agent architecture."
+            src={safeArchitecture}
+            title="Secure architecture"
           >
             <button
               className="block w-full overflow-hidden rounded-md border border-border bg-background p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               type="button"
             >
               <img
-                alt="Unsecure architecture diagram showing local code execution near database access"
+                alt="Secure architecture diagram showing Foundry Code Interpreter isolated from database credentials"
                 className="max-h-[42vh] w-full object-contain"
-                src={unsecureArchitecture}
+                src={safeArchitecture}
               />
             </button>
           </ImageDialog>

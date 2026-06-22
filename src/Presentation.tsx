@@ -1,13 +1,13 @@
 import type { ComponentType } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { AttackAtTheGate } from "@/components/slides/attack-at-the-gate/main";
-import { ClosingVerdict } from "@/components/slides/closing-verdict/main";
-import { MarketResearchQuest } from "@/components/slides/market-research-quest/main";
+import { KeyTakeaways } from "@/components/slides/key-takeaways/main";
+import { MarketResearchOverview } from "@/components/slides/market-research-overview/main";
+import { PromptInjectionFlow } from "@/components/slides/prompt-injection-flow/main";
 import { SecureEnvironmentHacker } from "@/components/slides/secure-environment-hacker/main";
-import { SecureCitadelArchitecture } from "@/components/slides/secure-citadel-architecture/main";
+import { SecureArchitecture } from "@/components/slides/secure-architecture/main";
 import { UnsecureEnvironmentHacker } from "@/components/slides/unsecure-environment-hacker/main";
 import { UnsecureEnvironmentUser } from "@/components/slides/unsecure-environment-user/main";
-import { UnsecureKeepArchitecture } from "@/components/slides/unsecure-keep-architecture/main";
+import { VulnerableArchitecture } from "@/components/slides/vulnerable-architecture/main";
 import type { SlideProps } from "@/components/slides/types";
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
@@ -36,51 +36,51 @@ interface SlideDefinition {
 
 const slides: SlideDefinition[] = [
   {
-    id: "market-research-quest",
-    label: "Market research quest",
-    Component: MarketResearchQuest,
+    id: "market-research-overview",
+    label: "Market research overview",
+    Component: MarketResearchOverview,
     cycleItems: 3,
   },
   {
-    id: "unsecure-keep-architecture",
-    label: "Unsecure keep architecture",
-    Component: UnsecureKeepArchitecture,
+    id: "vulnerable-architecture",
+    label: "Vulnerable architecture",
+    Component: VulnerableArchitecture,
     cycleItems: 3,
   },
   {
     id: "unsecure-environment-user",
-    label: "Unsecure environment: regular user",
+    label: "Live demo: trusted analyst",
     Component: UnsecureEnvironmentUser,
     cycleItems: 0,
   },
   {
-    id: "attack-at-the-gate",
-    label: "Attack at the gate",
-    Component: AttackAtTheGate,
+    id: "prompt-injection-flow",
+    label: "Prompt injection flow",
+    Component: PromptInjectionFlow,
     cycleItems: 3,
   },
   {
     id: "unsecure-environment-hacker",
-    label: "Unsecure environment: hacker prompt",
+    label: "Live demo: injected prompt",
     Component: UnsecureEnvironmentHacker,
     cycleItems: 0,
   },
   {
-    id: "secure-citadel-architecture",
-    label: "Secure citadel architecture",
-    Component: SecureCitadelArchitecture,
+    id: "secure-architecture",
+    label: "Secure architecture",
+    Component: SecureArchitecture,
     cycleItems: 3,
   },
   {
     id: "secure-environment-hacker",
-    label: "Secure environment: hacker prompt",
+    label: "Live demo: secure boundary",
     Component: SecureEnvironmentHacker,
     cycleItems: 0,
   },
   {
-    id: "closing-verdict",
-    label: "Closing verdict",
-    Component: ClosingVerdict,
+    id: "key-takeaways",
+    label: "Key takeaways",
+    Component: KeyTakeaways,
     cycleItems: 3,
   },
 ];

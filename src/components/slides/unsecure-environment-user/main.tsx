@@ -25,7 +25,7 @@ const infoCards = [
 export function UnsecureEnvironmentUser({ isActive }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="Act II · Live demonstration"
+      eyebrow="Live demo · trusted analyst"
       fill
       isActive={isActive}
       title="A trusted analyst asks for a market chart."

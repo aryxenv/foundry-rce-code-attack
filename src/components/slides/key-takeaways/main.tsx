@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const verdicts = [
   {
-    label: "Keep",
+    label: "Boundary",
     title: "Tool boundaries beat prompt wording.",
     detail:
       "The secure agent still lets the model create charts, but it removes the privileged context from generated code.",
@@ -18,23 +18,23 @@ const verdicts = [
       "The deck renders returned charts directly, so reviewers see the artifact, not just text.",
   },
   {
-    label: "Ship",
+    label: "Deploy",
     title: "One deployment owns the whole demo.",
     detail:
       "Root infrastructure now deploys the web app, API, shared data plane, and both agents into one resource group.",
   },
 ];
 
-export function ClosingVerdict({
+export function KeyTakeaways({
   isActive,
   cycleIndex,
   onSelectCycle,
 }: SlideProps) {
   return (
     <SlideFrame
-      eyebrow="The verdict"
+      eyebrow="Key takeaways"
       isActive={isActive}
-      title="Same story. Safer ending."
+      title="Same scenario. Safer design."
       titleClassName="lg:whitespace-normal"
     >
       <div className="grid grid-cols-1 gap-5 lg:min-h-full lg:content-center lg:grid-cols-3 lg:gap-6">
