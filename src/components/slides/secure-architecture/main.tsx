@@ -1,8 +1,7 @@
-import safeArchitecture from "@/assets/safe_architecture.png";
 import type { SlideProps } from "@/components/slides/types";
+import { ArchitectureFlow } from "@/components/ui/architecture-flow";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ImageDialog } from "@/components/ui/image-dialog";
 import { SlideFrame } from "@/components/ui/slide-frame";
 import { cn } from "@/lib/utils";
 
@@ -12,13 +11,12 @@ const defenses = [
     title: "One narrow tool reaches the database, not generated code.",
   },
   {
-    label: "Sealed sandbox",
-    title:
-      "Code Interpreter runs in a sealed room. It can chart, but it can't carry data out.",
+    label: "No inherited access",
+    title: "The sandbox can't borrow the agent's identity to reach the data.",
   },
   {
-    label: "Sanitized rows",
-    title: "Only the cleaned rows cross in. No raw tables, no credentials.",
+    label: "PII unreachable",
+    title: "Generated code can't reach raw customer rows, salaries, or SSNs.",
   },
 ];
 
@@ -51,7 +49,7 @@ export function SecureArchitecture({
                 <Badge variant={selected ? "default" : "outline"}>
                   {defense.label}
                 </Badge>
-                <p className="mt-4 text-lg font-semibold leading-snug tracking-[-0.02em]">
+                <p className="mt-3 text-lg font-semibold leading-snug tracking-[-0.02em]">
                   {defense.title}
                 </p>
               </Card>
@@ -66,23 +64,7 @@ export function SecureArchitecture({
               Sandbox boundary
             </span>
           </div>
-          <ImageDialog
-            alt="Secure architecture diagram showing Foundry Code Interpreter isolated from database credentials"
-            description="Expanded view of the secure agent architecture."
-            src={safeArchitecture}
-            title="Secure architecture"
-          >
-            <button
-              className="block w-full overflow-hidden rounded-md border border-border bg-background p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              type="button"
-            >
-              <img
-                alt="Secure architecture diagram showing Foundry Code Interpreter isolated from database credentials"
-                className="max-h-[42vh] w-full object-contain"
-                src={safeArchitecture}
-              />
-            </button>
-          </ImageDialog>
+          <ArchitectureFlow variant="secure" />
         </Card>
       </div>
     </SlideFrame>

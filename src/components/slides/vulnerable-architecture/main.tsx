@@ -1,8 +1,7 @@
-import unsecureArchitecture from "@/assets/unsecure_architecture.png";
 import type { SlideProps } from "@/components/slides/types";
+import { ArchitectureFlow } from "@/components/ui/architecture-flow";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ImageDialog } from "@/components/ui/image-dialog";
 import { SlideFrame } from "@/components/ui/slide-frame";
 import { cn } from "@/lib/utils";
 
@@ -65,23 +64,7 @@ export function VulnerableArchitecture({
               Agent container boundary
             </span>
           </div>
-          <ImageDialog
-            alt="Unsecure architecture diagram showing local code execution near database access"
-            description="Expanded view of the unsecure agent architecture."
-            src={unsecureArchitecture}
-            title="Unsecure architecture"
-          >
-            <button
-              className="block w-full overflow-hidden rounded-md border border-border bg-background p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              type="button"
-            >
-              <img
-                alt="Unsecure architecture diagram showing local code execution near database access"
-                className="max-h-[42vh] w-full object-contain"
-                src={unsecureArchitecture}
-              />
-            </button>
-          </ImageDialog>
+          <ArchitectureFlow variant="vulnerable" />
         </Card>
       </div>
     </SlideFrame>
