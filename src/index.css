@@ -162,6 +162,37 @@
   }
 }
 
+/* Native architecture diagram: looping flow lines + moving packet dots. */
+.arch-flow-line {
+  stroke-dasharray: 5 7;
+  animation: arch-flow-dash 0.9s linear infinite;
+}
+
+.arch-flow-line--slow {
+  animation-duration: 1.6s;
+}
+
+@keyframes arch-flow-dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.arch-flow-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-flow-line {
+    animation: none;
+  }
+
+  .arch-flow-dot {
+    display: none;
+  }
+}
+
 .export-dialog-content[data-state="open"] {
   animation: export-dialog-pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
