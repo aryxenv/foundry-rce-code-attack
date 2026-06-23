@@ -10,6 +10,7 @@ import { ImageDialog } from "@/components/ui/image-dialog";
 import { describeServerError, runDemo } from "@/lib/api";
 import type { DemoRunResponse, DemoScenario } from "@/lib/api";
 import { isPresentationExportMode } from "@/lib/export-mode";
+import { useFullscreen } from "@/hooks/useFullscreen";
 import {
   isSpaceKey,
   shouldIgnorePresentationShortcut,
@@ -108,6 +109,67 @@ function IconSend({ className }: { className?: string }) {
       <path d="m5 12 7-7 7 7" />
       <path d="M12 19V5" />
     </svg>
+  );
+}
+
+function IconExpand({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+      <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
+function IconCollapse({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 8h3a2 2 0 0 0 2-2V3" />
+      <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+      <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+      <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+    </svg>
+  );
+}
+
+function FullscreenButton() {
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
+  return (
+    <button
+      aria-pressed={isFullscreen}
+      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      onClick={toggleFullscreen}
+      type="button"
+    >
+      {isFullscreen ? (
+        <IconCollapse className="h-4 w-4" />
+      ) : (
+        <IconExpand className="h-4 w-4" />
+      )}
+      <span className="hidden sm:inline">
+        {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+      </span>
+    </button>
   );
 }
 
@@ -459,17 +521,20 @@ export function DemoStage({
           <p className="truncate text-sm font-semibold tracking-[-0.01em]">
             {agentName}
           </p>
-          <Badge
-            className={cn(
-              "shrink-0",
-              secure
-                ? "border-success/40 bg-success/10 text-success"
-                : "border-destructive/40 bg-destructive/10 text-destructive",
-            )}
-            variant="outline"
-          >
-            {secure ? "Secure" : "Unsecure"}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge
+              className={cn(
+                "shrink-0",
+                secure
+                  ? "border-success/40 bg-success/10 text-success"
+                  : "border-destructive/40 bg-destructive/10 text-destructive",
+              )}
+              variant="outline"
+            >
+              {secure ? "Secure" : "Unsecure"}
+            </Badge>
+            {exportMode ? null : <FullscreenButton />}
+          </div>
         </header>
 
         <div

@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { KeyTakeaways } from "@/components/slides/key-takeaways/main";
 import { MarketResearchOverview } from "@/components/slides/market-research-overview/main";
 import { SecureEnvironmentHacker } from "@/components/slides/secure-environment-hacker/main";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { usePresentationNavigation } from "@/hooks/usePresentationNavigation";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { FullscreenContext } from "@/hooks/useFullscreen";
 import { isPresentationExportMode } from "@/lib/export-mode";
 import {
   isSpaceKey,
@@ -151,8 +152,10 @@ function InteractivePresentation() {
     slideId: "",
     index: 0,
   });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const resetCycleState = useCallback(() => {
     setCycleState({ slideId: "", index: 0 });
+    setIsFullscreen(false);
   }, []);
   const {
     activeIndex,
@@ -201,6 +204,34 @@ function InteractivePresentation() {
     onSwipeRight: previousSlide,
   });
 
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((value) => !value);
+  }, []);
+
+  const fullscreenValue = useMemo(
+    () => ({
+      isFullscreen,
+      toggleFullscreen,
+      setFullscreen: setIsFullscreen,
+    }),
+    [isFullscreen, toggleFullscreen],
+  );
+
+  // Escape leaves the in-app fullscreen demo view.
+  useEffect(() => {
+    if (!isFullscreen) {
+      return;
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsFullscreen(false);
+      }
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen]);
+
   useEffect(() => {
     function handleSpacebar(event: KeyboardEvent) {
       if (
@@ -224,75 +255,79 @@ function InteractivePresentation() {
   }, [cycleActiveSlide, cycleCount]);
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <div
-        className="relative min-h-0 w-full flex-1 max-[900px]:touch-pan-y"
-        {...swipeHandlers}
-      >
-        {slides.map(({ id, label, Component, cycleItems }, index) => {
-          const isActive = index === activeIndex;
+    <FullscreenContext.Provider value={fullscreenValue}>
+      <main className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+        <div
+          className="relative min-h-0 w-full flex-1 max-[900px]:touch-pan-y"
+          {...swipeHandlers}
+        >
+          {slides.map(({ id, label, Component, cycleItems }, index) => {
+            const isActive = index === activeIndex;
 
-          return (
-            <article
-              key={id}
-              aria-hidden={!isActive}
-              aria-label={label}
-              className={cn(
-                "absolute inset-0 transition-opacity duration-500 ease-in-out",
-                isActive
-                  ? "pointer-events-auto opacity-100"
-                  : "pointer-events-none opacity-0",
-              )}
-              inert={!isActive}
-            >
-              <Component
-                isActive={isActive}
-                cycleIndex={isActive ? activeCycleIndex : 0}
-                cycleCount={cycleItems}
-                onSelectCycle={selectCycle}
-              />
-            </article>
-          );
-        })}
-      </div>
-
-      <footer className="z-10 shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <ExportDialog />
-            <div className="h-1 flex-1 rounded-sm bg-muted">
-              <div
-                className="h-1 rounded-sm bg-primary transition-all duration-500 ease-in-out"
-                style={{ width: `${progress * 100}%` }}
-              />
-            </div>
-            <span className="min-w-fit text-xs font-semibold text-muted-foreground">
-              {activeIndex + 1} / {slides.length}
-            </span>
-          </div>
-
-          <div className="hidden items-center gap-2 sm:flex sm:justify-end">
-            <Button
-              disabled={!canGoPrevious}
-              onClick={previousSlide}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Previous
-            </Button>
-            <Button
-              disabled={!canGoNext}
-              onClick={nextSlide}
-              size="sm"
-              type="button"
-            >
-              Next
-            </Button>
-          </div>
+            return (
+              <article
+                key={id}
+                aria-hidden={!isActive}
+                aria-label={label}
+                className={cn(
+                  "absolute inset-0 transition-opacity duration-500 ease-in-out",
+                  isActive
+                    ? "pointer-events-auto opacity-100"
+                    : "pointer-events-none opacity-0",
+                )}
+                inert={!isActive}
+              >
+                <Component
+                  isActive={isActive}
+                  cycleIndex={isActive ? activeCycleIndex : 0}
+                  cycleCount={cycleItems}
+                  onSelectCycle={selectCycle}
+                />
+              </article>
+            );
+          })}
         </div>
-      </footer>
-    </main>
+
+        {isFullscreen ? null : (
+          <footer className="z-10 shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex min-w-0 flex-1 items-center gap-4">
+                <ExportDialog />
+                <div className="h-1 flex-1 rounded-sm bg-muted">
+                  <div
+                    className="h-1 rounded-sm bg-primary transition-all duration-500 ease-in-out"
+                    style={{ width: `${progress * 100}%` }}
+                  />
+                </div>
+                <span className="min-w-fit text-xs font-semibold text-muted-foreground">
+                  {activeIndex + 1} / {slides.length}
+                </span>
+              </div>
+
+              <div className="hidden items-center gap-2 sm:flex sm:justify-end">
+                <Button
+                  disabled={!canGoPrevious}
+                  onClick={previousSlide}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={!canGoNext}
+                  onClick={nextSlide}
+                  size="sm"
+                  type="button"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </footer>
+        )}
+      </main>
+    </FullscreenContext.Provider>
   );
 }
 

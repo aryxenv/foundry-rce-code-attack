@@ -4,6 +4,7 @@ import { BrandLockup } from "@/components/ui/brand-lockup";
 import { HelpDialog } from "@/components/ui/help-dialog";
 import { ServerHealthDot } from "@/components/ui/server-health-dot";
 import { isPresentationExportMode } from "@/lib/export-mode";
+import { useFullscreen } from "@/hooks/useFullscreen";
 
 interface SlideFrameProps {
   eyebrow?: string;
@@ -31,48 +32,59 @@ export function SlideFrame({
   fill = false,
 }: SlideFrameProps) {
   const exportMode = isPresentationExportMode();
+  const { isFullscreen } = useFullscreen();
 
   return (
     <section
       className={cn(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden bg-background px-5 pt-6 text-foreground sm:px-8 sm:pt-8 lg:px-14 lg:pt-12",
+        "flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground",
+        isFullscreen
+          ? "px-3 pt-3 sm:px-4 sm:pt-4 lg:px-4 lg:pt-4"
+          : "px-5 pt-6 sm:px-8 sm:pt-8 lg:px-14 lg:pt-12",
         className,
       )}
     >
-      <header className="shrink-0 border-b border-border pb-6 sm:pb-8">
-        {eyebrow ? (
-          <div className="flex flex-row items-center justify-between gap-4">
-            <div className="flex min-w-0 flex-row items-center gap-2.5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:text-sm sm:tracking-[0.22em]">
-                {challenge ? (
-                  <>
-                    <span>{`Challenge ${challenge}`}</span>
-                    <span className="mx-2 text-primary/50">&middot;</span>
-                  </>
-                ) : null}
-                {eyebrow}
-              </p>
-              {exportMode ? null : <ServerHealthDot />}
-              {eyebrowAdornment}
+      {isFullscreen ? null : (
+        <header className="shrink-0 border-b border-border pb-6 sm:pb-8">
+          {eyebrow ? (
+            <div className="flex flex-row items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-row items-center gap-2.5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:text-sm sm:tracking-[0.22em]">
+                  {challenge ? (
+                    <>
+                      <span>{`Challenge ${challenge}`}</span>
+                      <span className="mx-2 text-primary/50">&middot;</span>
+                    </>
+                  ) : null}
+                  {eyebrow}
+                </p>
+                {exportMode ? null : <ServerHealthDot />}
+                {eyebrowAdornment}
+              </div>
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                {exportMode ? null : <HelpDialog />}
+                <BrandLockup />
+              </div>
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-3">
-              {exportMode ? null : <HelpDialog />}
-              <BrandLockup />
-            </div>
+          ) : null}
+          <div className="mt-5 grid gap-4 lg:grid-cols-1 lg:items-end">
+            <h1
+              className={cn(
+                "max-w-none text-3xl font-semibold leading-[1.02] tracking-[-0.04em] text-foreground sm:text-4xl lg:whitespace-nowrap lg:text-5xl xl:text-6xl",
+                titleClassName,
+              )}
+            >
+              {title}
+            </h1>
           </div>
-        ) : null}
-        <div className="mt-5 grid gap-4 lg:grid-cols-1 lg:items-end">
-          <h1
-            className={cn(
-              "max-w-none text-3xl font-semibold leading-[1.02] tracking-[-0.04em] text-foreground sm:text-4xl lg:whitespace-nowrap lg:text-5xl xl:text-6xl",
-              titleClassName,
-            )}
-          >
-            {title}
-          </h1>
-        </div>
-      </header>
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-5 pt-6 sm:py-8">
+        </header>
+      )}
+      <div
+        className={cn(
+          "no-scrollbar min-h-0 flex-1 overflow-y-auto",
+          isFullscreen ? "py-3 pb-7" : "pb-5 pt-6 sm:py-8",
+        )}
+      >
         <div
           className={cn(
             "flex flex-col",
