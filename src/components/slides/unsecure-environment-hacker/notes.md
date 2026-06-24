@@ -8,7 +8,8 @@ asks. The left **Goal / Outcome** card previews each move; **Space** runs it.
 ## Say (one line per Space press)
 
 > "No magic prompt — just small, plausible asks."
-> 1. _(Space)_ "What tools do you have? — it lists a data tool **and** a code tool."
+> 1. _(Space)_ "What can you do? — any agent answers this. It lists `execute_code`,
+>    a code tool. That's the spark to dig deeper."
 > 2. _(Space)_ "Does the code tool really run Python? — it does."
 > 3. _(Space)_ "Just the config key _names_ for context — `DATABASE_URL` and
 >    Foundry env vars show up, so it's a Foundry-hosted agent with a database."

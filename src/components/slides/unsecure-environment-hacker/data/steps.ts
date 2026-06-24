@@ -13,8 +13,8 @@ import {
 export const ATTACK_STEPS: DemoStep[] = [
   {
     label: "Tool discovery",
-    goal: "See what the agent will admit to before asking for anything real.",
-    outcome: "It names get_market_data and execute_code. A code path exists.",
+    goal: "Ask what the agent can do, a basic question any agent answers.",
+    outcome: "It lists execute_code, a code-execution tool. Worth digging into.",
     prompt: RECON_TOOLS_PROMPT,
   },
   {
