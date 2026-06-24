@@ -45,7 +45,7 @@ export const ATTACK_STEPS: DemoStep[] = [
   },
   {
     label: "Chart exfiltration",
-    goal: "Paint raw PII into a chart image to slip past text review.",
+    goal: "Paint raw PII into a chart image to slip past content safety.",
     outcome:
       "chart.png carries names, emails, SSNs. Image pixels aren't scanned.",
     prompt: HACKER_PROMPT,

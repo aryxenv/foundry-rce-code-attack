@@ -24,4 +24,5 @@ asks. The left **Goal / Outcome** card previews each move; **Space** runs it.
 - Tight on time? Run **1 → 4 → 6**; that still tells the whole story.
 - Call out step 3: we only ask for key _names_ for context — that alone reveals
   a Foundry-hosted agent with a database to target.
-- Close the slide on: _text-only review would have passed this._
+- Close the slide on: _content safety only scans text, so the image walked right
+  past it._
