@@ -5,6 +5,8 @@ import {
   useRef,
   useState,
 } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Badge } from "@/components/ui/badge";
 import { ImageDialog } from "@/components/ui/image-dialog";
 import { describeServerError, runDemo } from "@/lib/api";
@@ -197,6 +199,93 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+function MarkdownMessage({ text }: { text: string }) {
+  return (
+    <div className="text-sm leading-6 text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => (
+            <p className="my-2 whitespace-pre-wrap leading-6">{children}</p>
+          ),
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">
+              {children}
+            </strong>
+          ),
+          em: ({ children }) => <em className="italic">{children}</em>,
+          a: ({ children, href }) => (
+            <a
+              className="font-medium text-primary underline underline-offset-2"
+              href={href}
+              onClick={(event) => event.stopPropagation()}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {children}
+            </a>
+          ),
+          ul: ({ children }) => (
+            <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>
+          ),
+          li: ({ children }) => <li className="leading-6">{children}</li>,
+          h1: ({ children }) => (
+            <h1 className="mb-2 mt-3 text-base font-semibold">{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="mb-2 mt-3 text-base font-semibold">{children}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="mb-1.5 mt-3 text-sm font-semibold">{children}</h3>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="my-2 border-l-2 border-border pl-3 text-muted-foreground">
+              {children}
+            </blockquote>
+          ),
+          hr: () => <hr className="my-3 border-border" />,
+          code: ({ className, children }) => {
+            const isBlock = (className ?? "").includes("language-");
+            if (isBlock) {
+              return <code className={className}>{children}</code>;
+            }
+            return (
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground">
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }) => (
+            <pre className="no-scrollbar my-2 overflow-x-auto rounded-lg border border-border bg-muted/60 p-3 font-mono text-[0.8rem] leading-5 text-foreground">
+              {children}
+            </pre>
+          ),
+          table: ({ children }) => (
+            <div className="no-scrollbar my-2 overflow-x-auto">
+              <table className="w-full border-collapse text-left text-[0.8rem]">
+                {children}
+              </table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border border-border px-2 py-1 font-semibold">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-border px-2 py-1">{children}</td>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 function AgentBubble({
   message,
   chartAlt,
@@ -222,17 +311,16 @@ function AgentBubble({
 
         {message.status === "thinking" ? (
           <TypingDots />
-        ) : (
+        ) : message.status === "error" ? (
           <div
             aria-live="polite"
-            className={cn(
-              "whitespace-pre-wrap text-sm leading-6",
-              message.status === "error"
-                ? "text-destructive"
-                : "text-foreground",
-            )}
+            className="whitespace-pre-wrap text-sm leading-6 text-destructive"
           >
             {message.text}
+          </div>
+        ) : (
+          <div aria-live="polite">
+            <MarkdownMessage text={message.text} />
           </div>
         )}
 
