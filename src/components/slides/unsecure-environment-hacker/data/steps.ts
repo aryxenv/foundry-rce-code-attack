@@ -25,8 +25,9 @@ export const ATTACK_STEPS: DemoStep[] = [
   },
   {
     label: "Config key leak",
-    goal: "Ask only for setting names, never the values.",
-    outcome: "DATABASE_URL and AZURE_* names leak. A password exists, unseen.",
+    goal: "See whether any config key names are exposed for context.",
+    outcome:
+      "DATABASE_URL and Foundry env vars appear. A hosted Foundry agent with a database.",
     prompt: ATTACK_ENV_PROMPT,
   },
   {
