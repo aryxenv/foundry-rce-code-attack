@@ -2,19 +2,23 @@
 
 **Time:** ~30s · **Steps:** 4 (Space advances each) · **Agent:** Secure
 
-Re-run the critical checkpoints from Demo 2. Same prompts — the outcome changes
-because the runtime context changed.
+Lead with the breach that worked on the unsecure agent, then replay the recon to
+show _why_ it fails here.
 
 ## Say (one line per Space press)
 
-> "Same attacker, same prompts — secure agent."
-> 1. _(Space)_ "Tool discovery — capabilities are narrower."
-> 2. _(Space)_ "Environment recon — no `DATABASE_URL`, no `AZURE_*` secrets."
-> 3. _(Space)_ "Database connectivity — the connection just fails."
-> 4. _(Space)_ "The full audit payload — the chart still renders from sanitized
->    rows. There's nothing private to leak."
+> "Same attacker, same prompts — now the secure agent."
+> 1. _(Space)_ "The full chart-exfiltration prompt that breached the last agent
+>    — this time it just can't generate the chart."
+> 2. _(Space)_ "So we replay the recon. Tool discovery — same tools, code
+>    execution included. So why did it fail?"
+> 3. _(Space)_ "Sandbox check — code still runs, but in an isolated Foundry
+>    sandbox, not the agent container."
+> 4. _(Space)_ "List the config keys, exactly like before — nothing. No
+>    `DATABASE_URL`, no secrets. That's why the breach died at the first probe."
 
 ## Do / cues
 
-- Explicitly contrast each outcome with Demo 2 ("last time this leaked…").
-- Land the point: _the process is identical; the context is gone._
+- Open by reminding them this is the _same_ prompt that leaked PII a slide ago.
+- Land the point: the sandbox is a dynamic, Foundry-managed container with no
+  inherited environment, so the attacker's first real probe comes back empty.
