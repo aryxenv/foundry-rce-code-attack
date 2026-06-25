@@ -173,3 +173,12 @@ azd down --purge
 - Remy van den Spiegel - Solutions Engineer (Security)
 - Narjiss Youyou - Cloud Solutions Architect (Cloud & AI)
 - Romiya Nepali - Cloud Solutions Architect (AI Business)
+
+## License
+
+MIT
+
+## Disclaimer
+
+> [!IMPORTANT]
+> The owner of this project assumes no liability for any use, misuse, or damages arising from this repository.
