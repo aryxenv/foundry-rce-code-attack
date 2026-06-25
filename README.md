@@ -172,3 +172,4 @@ azd down --purge
 - Aryan Shah - Solutions Engineer (Cloud & AI)
 - Remy van den Spiegel - Solutions Engineer (Security)
 - Narjiss Youyou - Cloud Solutions Architect (Cloud & AI)
+- Romiya Nepali - Cloud Solutions Architect (AI Business)
