@@ -70,6 +70,9 @@ cards on the left explain what to watch for. Prefer to drive the hosted agents
 directly in the Foundry portal? The exact prompts live in
 [`trial_prompts.md`](./trial_prompts.md).
 
+> [!TIP]
+> Press F11 on your keyboard to make the presentation fullscreen on your browser. (F11 again to exit fullscreen)
+
 ## Cleanup
 
 Run from the repository root:
